@@ -20,9 +20,9 @@ module memory_arbiter
 		reset_n
 	);
 
-localparam PERIPHERALS_FIFO_WIDTH = $clog2(PERIPHERALS_FIFO_DEPTH);
-localparam FIFO_WIDTH = $clog2(FIFO_DEPTH);
-localparam PERIPHERAL_WIDTH = $clog2(PERIPHERALS);
+localparam PERIPHERALS_FIFO_WIDTH = $clog2( PERIPHERALS_FIFO_DEPTH );
+localparam FIFO_WIDTH = $clog2( FIFO_DEPTH );
+localparam PERIPHERAL_WIDTH = $clog2( PERIPHERALS );
 
 input clk;
 input [(ADDRESS_WIDTH * PERIPHERALS) - 1:0] address;
@@ -116,15 +116,18 @@ always @ (posedge clk or negedge reset_n) begin
 		end
 	end
 	else begin
-		peripheral_count <= (peripheral_count == PERIPHERALS - 1) ? 0 : peripheral_count + 1;
-		if(head_peripherals[peripheral_count] != tail_peripherals[peripheral_count]) begin
- 			address_sr[head] <= address_peripherals_sr[peripheral_count][tail_peripherals[peripheral_count]];
+		if(weight == 0) begin
+			weight <= fifo_count[peripheral_count == PERIPHERALS - 1 ? 0 : peripheral_count + 1];
+			peripheral_count <= peripheral_count == PERIPHERALS - 1 ? 0 : peripheral_count + 1;
+		end
+		else begin
+			address_sr[head] <= address_peripherals_sr[peripheral_count][tail_peripherals[peripheral_count]];
 			wr_sr[head] <= wr_peripherals_sr[peripheral_count][tail_peripherals[peripheral_count]];
 			data_in_sr[head] <= data_in_peripherals_sr[peripheral_count][tail_peripherals[peripheral_count]];
 			peripheral_select_sr[head] <= (1 << peripheral_count);
 			
 			// Increment peripheral tail and main FIFO head
-			tail_peripherals[peripheral_count] <= tail_peripherals[peripheral_count] == (PERIPHERALS_FIFO_DEPTH - 1) ? 0 : tail_peripherals[peripheral_count] + 1;
+			tail_peripherals[peripheral_count] <= tail_peripherals[peripheral_count] == PERIPHERALS_FIFO_DEPTH - 1 ? : 0 : tail_peripherals[peripheral_count] + 1;
 			head <= head == (FIFO_DEPTH - 1) ? 0 : head + 1;
 			weight <= weight - 1;
 		end
@@ -136,29 +139,16 @@ reg [ADDRESS_WIDTH - 1:0] address_ram;
 reg wr_ram;
 reg [7:0] data_in_ram;
 reg [7:0] data_out_ram;
-
-always @ (negedge clk or negedge reset_n) begin
-	if(reset_n == 1'b0) begin
-		address_ram <= 0;
-		wr_ram <= 1'b0;
-		data_in_ram <= 0;
-	end
-	else begin
-		if(head != tail) begin
-			address_ram <= address_sr[tail];
-			wr_ram <= wr_sr[tail];
-			data_in_ram <= data_in_sr[tail];
-		end
-	end
-end
-
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
 reg [7:0] data_out_sr [2:0];
 wire [7:0] q;
 
-// Data ready output
+// Latch output to RAM
 always @ (posedge clk or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
+		address_ram <= 0;
+		wr_ram <= 1'b0;
+		data_in_ram <= 0;
 		tail <= 0;
 		data_out_ready_sr[0] <= 0;
 		data_out_ready_sr[1] <= 0;
@@ -166,7 +156,15 @@ always @ (posedge clk or negedge reset_n) begin
 	end
 	else begin
 		if(head != tail) begin
-			data_out_ready_sr[0] <= wr_sr[tail] ? 0 : peripheral_select_sr[tail];
+			address_ram <= address_sr[tail];
+			wr_ram <= wr_sr[tail];
+			data_in_ram <= data_in_sr[tail];
+			if(wr_sr[tail] == 1'b1) begin
+				data_out_ready_sr[0] <= 0;
+			end
+			else begin
+				data_out_ready_sr[0] <= peripheral_select_sr[tail];
+			end
 			
 			// Increment tail
 			tail <= tail == (FIFO_DEPTH - 1) ? 0 : tail + 1;
@@ -178,8 +176,6 @@ always @ (posedge clk or negedge reset_n) begin
 		data_out_ready_sr[2] <= data_out_ready_sr[1];
 	end
 end
-
-
 
 always @ (posedge clk or negedge reset_n) begin
 	if (reset_n == 1'b0) begin
@@ -208,4 +204,3 @@ ram ram (
 
 	
 endmodule
-
