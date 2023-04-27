@@ -325,29 +325,28 @@ always @ (posedge clk or negedge reset_n) begin
 		pixels_loaded <= 0;
 	end
 	else begin
-		if(pixels_loaded != (PIXELS_PER_ROW)) begin
-			if(data_in_ready_fifo == 1'b1) begin
-				if(flip_in == 1'b1) begin
-					if(row_count_in == ROWS - 1) begin
-						row_count_in <= 0;
-						pixels_loaded <= pixels_loaded + 1;
+		if(data_in_ready_fifo == 1'b1) begin
+			if(flip_in == 1'b1) begin
+				if(row_count_in == ROWS - 1) begin
+					row_count_in <= 0;
+					flip_in <= 1'b0;
+					if(pixels_loaded == PIXELS_PER_ROW) begin
+						pixels_loaded <= 0;
 					end
 					else begin
-						row_count_in <= row_count_in + 1;
+						pixels_loaded <= pixels_loaded + 1;
 					end
 				end
 				else begin
-					// Do nothing... 
+					row_count_in <= row_count_in + 1;
 				end
-				
-				flip_in <= ~flip_in;
-				rgb[pixels_loaded][flip_in][row_count_in][line_buffer_load] <= data_in_fifo;
 			end
-		end
-		else begin
-			pixels_loaded <= 0;
-			row_count_in <= 0;
-			flip_in <= 1'b0;
+			else begin
+				// Do nothing... 
+			end
+			
+			flip_in <= ~flip_in;
+			rgb[pixels_loaded][flip_in][row_count_in][line_buffer_load] <= data_in_fifo;
 		end
 	end
 end
