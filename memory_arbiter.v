@@ -27,7 +27,7 @@ localparam PERIPHERAL_WIDTH = $clog2( PERIPHERALS );
 input clk;
 input [(ADDRESS_WIDTH * PERIPHERALS) - 1:0] address;
 input [PERIPHERALS - 1:0] wr;
-output reg [PERIPHERALS - 1:0] fifo_full;
+output [PERIPHERALS - 1:0] fifo_full;
 input [(8 * PERIPHERALS) - 1:0] data_in;
 input [PERIPHERALS - 1:0] data_in_ready;
 output [7:0] data_out;
@@ -61,11 +61,8 @@ generate
 			if (reset_n == 1'b0) begin
 				head_peripherals[i] <= 0;
 				head_peripherals_next[i] <= 1;
-				fifo_full[i] <= 1'b0;
 			end
 			else begin
-				fifo_full[i] <= head_peripherals_next[i] == tail_peripherals[i];
-				
 				if(data_in_ready[i] == 1'b1 && fifo_full[i] == 1'b0) begin
 					address_peripherals_sr[i][head_peripherals[i]] <= address_w[i];
 					wr_peripherals_sr[i][head_peripherals[i]] <= wr[i];
@@ -78,7 +75,7 @@ generate
 			end
 		end
 		
-		always @ (posedge clk or negedge reset_n) begin
+		always @ (negedge clk or negedge reset_n) begin
 			if (reset_n == 1'b0) begin
 				fifo_count[i] <= 0;
 			end
@@ -91,6 +88,8 @@ generate
 				end
 			end
 		end
+
+		assign fifo_full[i] = head_peripherals_next[i] == tail_peripherals[i];
 	end
 endgenerate
 
@@ -100,7 +99,6 @@ reg wr_sr [FIFO_DEPTH - 1:0];
 reg [7:0] data_in_sr [FIFO_DEPTH - 1:0];
 reg [PERIPHERALS - 1:0] peripheral_select_sr [FIFO_DEPTH - 1:0];
 reg [FIFO_WIDTH - 1:0] head;
-reg [FIFO_WIDTH - 1:0] head_next;
 reg [FIFO_WIDTH - 1:0] tail;
 reg [PERIPHERAL_WIDTH - 1:0] peripheral_count;
 reg [PERIPHERALS_FIFO_WIDTH - 1:0] weight;
@@ -127,7 +125,7 @@ always @ (posedge clk or negedge reset_n) begin
 			peripheral_select_sr[head] <= (1 << peripheral_count);
 			
 			// Increment peripheral tail and main FIFO head
-			tail_peripherals[peripheral_count] <= tail_peripherals[peripheral_count] == PERIPHERALS_FIFO_DEPTH - 1 ? : 0 : tail_peripherals[peripheral_count] + 1;
+			tail_peripherals[peripheral_count] <= tail_peripherals[peripheral_count] == PERIPHERALS_FIFO_DEPTH - 1 ? 0 : tail_peripherals[peripheral_count] + 1;
 			head <= head == (FIFO_DEPTH - 1) ? 0 : head + 1;
 			weight <= weight - 1;
 		end
@@ -138,13 +136,11 @@ end
 reg [ADDRESS_WIDTH - 1:0] address_ram;
 reg wr_ram;
 reg [7:0] data_in_ram;
-reg [7:0] data_out_ram;
+wire [7:0] data_out_ram;
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
-reg [7:0] data_out_sr [2:0];
-wire [7:0] q;
 
 // Latch output to RAM
-always @ (posedge clk or negedge reset_n) begin
+always @ (negedge clk or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
 		address_ram <= 0;
 		wr_ram <= 1'b0;
@@ -177,21 +173,8 @@ always @ (posedge clk or negedge reset_n) begin
 	end
 end
 
-always @ (posedge clk or negedge reset_n) begin
-	if (reset_n == 1'b0) begin
-		data_out_sr[0] <= 0;
-		data_out_sr[1] <= 0;
-		data_out_sr[2] <= 0;
-	end
-	else begin
-		data_out_sr[0] <= q;
-		data_out_sr[1] <= data_out_sr[0];
-		data_out_sr[2] <= data_out_sr[1];
-	end
-end
-
 assign data_out_ready = data_out_ready_sr[1];
-assign data_out = q;
+assign data_out = data_out_ram;
 
 // RAM instantiation 8 bit x 16384
 ram ram (
@@ -199,7 +182,7 @@ ram ram (
 	.clock(clk),
 	.data(data_in_ram),
 	.wren(wr_ram),
-	.q(q)
+	.q(data_out_ram)
 	);
 
 	

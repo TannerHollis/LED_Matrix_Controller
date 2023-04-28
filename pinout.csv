@@ -1,0 +1,48 @@
+# Copyright (C) 2022  Intel Corporation. All rights reserved.
+# Your use of Intel Corporation's design tools, logic functions 
+# and other software and tools, and any partner logic 
+# functions, and any output files from any of the foregoing 
+# (including device programming or simulation files), and any 
+# associated documentation or information are expressly subject 
+# to the terms and conditions of the Intel Program License 
+# Subscription Agreement, the Intel Quartus Prime License Agreement,
+# the Intel FPGA IP License Agreement, or other applicable license
+# agreement, including, without limitation, that your use is for
+# the sole purpose of programming logic devices manufactured by
+# Intel and sold by Intel or its authorized distributors.  Please
+# refer to the applicable agreement for further details, at
+# https://fpgasoftware.intel.com/eula.
+
+# Quartus Prime Version 22.1std.0 Build 915 10/25/2022 SC Lite Edition
+# File: E:\quartus\Projects\LED_Matrix_Controller\pinout.csv
+# Generated on: Thu Apr 27 22:38:43 2023
+
+# Note: The column header names should not be changed if you wish to import this .csv file into the Quartus Prime software.
+
+To,Direction,Location,I/O Bank,VREF Group,Fitter Location,I/O Standard,Reserved,Current Strength,Slew Rate,Differential Pair,Strict Preservation
+altera_reserved_tck,Input,,,,PIN_G8,,,,,,
+altera_reserved_tdi,Input,,,,PIN_G6,,,,,,
+altera_reserved_tdo,Output,,,,PIN_H8,,,,,,
+altera_reserved_tms,Input,,,,PIN_F5,,,,,,
+b0[0],Output,PIN_C15,7,B7_N2,PIN_C15,3.0-V LVTTL,,,,,
+b1[0],Output,PIN_C12,8,B8_N1,PIN_C12,3.0-V LVCMOS,,,,,
+clk_in,Input,PIN_B14,7,B7_N2,PIN_B14,3.0-V LVCMOS,,,,,
+cs_n,Input,PIN_A23,7,B7_N0,PIN_A23,3.0-V LVCMOS,,,,,
+g0[0],Output,PIN_A15,7,B7_N2,PIN_A15,3.0-V LVCMOS,,,,,
+g1[0],Output,PIN_B13,8,B8_N0,PIN_B13,3.0-V LVCMOS,,,,,
+led_clk,Output,PIN_B10,8,B8_N0,PIN_B10,3.0-V LVCMOS,,,,,
+line_select[4],Output,PIN_C11,8,B8_N1,PIN_C11,3.0-V LVCMOS,,,,,
+line_select[3],Output,PIN_A11,8,B8_N0,PIN_A11,3.0-V LVCMOS,,,,,
+line_select[2],Output,PIN_B11,8,B8_N0,PIN_B11,3.0-V LVCMOS,,,,,
+line_select[1],Output,PIN_A12,8,B8_N0,PIN_A12,3.0-V LVCMOS,,,,,
+line_select[0],Output,PIN_A13,8,B8_N0,PIN_A13,3.0-V LVCMOS,,,,,
+miso,Output,PIN_B19,7,B7_N1,PIN_B19,3.0-V LVCMOS,,,,,
+mosi,Input,PIN_A20,7,B7_N1,PIN_A20,3.0-V LVCMOS,,,,,
+oe,Output,PIN_C10,8,B8_N1,PIN_C10,3.0-V LVCMOS,,,,,
+r0[0],Output,PIN_B15,7,B7_N2,PIN_B15,3.0-V LVCMOS,,,,,
+r1[0],Output,PIN_C13,8,B8_N0,PIN_C13,3.0-V LVCMOS,,,,,
+reset_n,Input,PIN_B22,7,B7_N0,PIN_B22,3.0-V LVCMOS,,,,,
+sck,Input,PIN_A22,7,B7_N1,PIN_A22,3.0-V LVCMOS,,,,,
+stb,Output,PIN_A10,8,B8_N0,PIN_A10,3.0-V LVCMOS,,,,,
+user_reserve_1,Output,PIN_C14,7,B7_N2,PIN_C14,3.0-V LVCMOS,as output driving ground,,,,
+user_reserve_2,Output,PIN_B9,8,B8_N1,PIN_B9,3.0-V LVCMOS,as output driving ground,,,,

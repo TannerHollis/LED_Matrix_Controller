@@ -22,9 +22,9 @@ module top(
 	clk_in
 	);
 
-localparam [10:0] PIXELS_PER_ROW = 256;
+localparam PIXELS_PER_ROW = 256;
 localparam ADDRESS_WIDTH = 25;
-localparam [7:0] LED_PANEL_ROWS = 1;
+localparam ROWS = 1;
 localparam MEMORY_ARBITER_PERIPHERALS = 2;
 	
 // Define signals
@@ -33,12 +33,12 @@ input cs_n;
 input mosi;
 output miso;
 
-output [LED_PANEL_ROWS - 1:0] r0;
-output [LED_PANEL_ROWS - 1:0] r1;
-output [LED_PANEL_ROWS - 1:0] g0;
-output [LED_PANEL_ROWS - 1:0] g1;
-output [LED_PANEL_ROWS - 1:0] b0;
-output [LED_PANEL_ROWS - 1:0] b1;
+output [ROWS - 1:0] r0;
+output [ROWS - 1:0] r1;
+output [ROWS - 1:0] g0;
+output [ROWS - 1:0] g1;
+output [ROWS - 1:0] b0;
+output [ROWS - 1:0] b1;
 output [4:0] line_select;
 output stb;
 output oe;
@@ -141,7 +141,7 @@ led_matrix_controller
 	#(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH),
 		.PIXELS_PER_ROW(PIXELS_PER_ROW),
-		.ROWS(LED_PANEL_ROWS)
+		.ROWS(ROWS)
 	)
 	led_matrix
 	(

@@ -73,7 +73,9 @@ reg [2:0] state;
 localparam [2:0] 
 	IDLE = 0,
 	CMD_RXD = 1,
-	DATA_RXD = 2;
+	CMD_DATA_RXD = 2,
+	CMD_WRITE_DATA = 3;
+	
 
 localparam [7:0]
 		CMD_WRITE = 10,
@@ -81,21 +83,22 @@ localparam [7:0]
 
 reg [7:0] cmd;
 
+reg [ADDRESS_WIDTH - 1:0] address_in;
+reg [ADDRESS_WIDTH - 1:0] address_out_fifo [3:0];
+reg [ADDRESS_WIDTH - 1:0] data_out_fifo [3:0];
+reg [1:0] head_out;
+
+
 always @ (posedge clk or negedge reset_n) begin
 	if (reset_n == 1'b0) begin
 		state <= IDLE;
 		cmd <= 0;
-		address_mem <= 0;
-		data_out_mem <= 0;
-		data_out_ready_mem <= 1'b0;
+		head_out <= 0;
 	end
 	else begin
 		if (cs_n == 1'b1) begin
 			state <= IDLE;
 			cmd <= 0;
-			address_mem <= 0;
-			data_out_mem <= 0;
-			data_out_ready_mem <= 1'b0;
 		end
 		else begin
 			if (data_in_ready == 1'b1) begin
@@ -111,8 +114,8 @@ always @ (posedge clk or negedge reset_n) begin
 						case(cmd)
 							CMD_WRITE: begin
 								if(data_in_count == 5) begin
-									address_mem <= {data_in_r[2], data_in_r[1], data_in_r[0], data_in};
-									state <= DATA_RXD;
+									address_in <= {data_in_r[2], data_in_r[1], data_in_r[0], data_in};
+									state <= CMD_DATA_RXD;
 								end
 							end
 							
@@ -122,20 +125,55 @@ always @ (posedge clk or negedge reset_n) begin
 						endcase
 					end
 					
-					DATA_RXD : begin
-						data_out_mem <= data_in;
-						data_out_ready_mem <= 1'b1;
+					CMD_DATA_RXD : begin
+						address_out_fifo[head_out] <= address_in;
+						data_out_fifo[head_out] <= data_in;
+						head_out <= head_out == 3 ? 0 : head_out + 1;
+						state <= CMD_WRITE_DATA;
+					end
+					
+					CMD_WRITE_DATA : begin
+						address_out_fifo[head_out] <= address_in + 1;
+						address_in <= address_in + 1;
+						data_out_fifo[head_out] <= data_in;
+						head_out <= head_out == 3 ? 0 : head_out + 1;
+						state <= CMD_WRITE_DATA;
 					end
 				endcase
 			end
 			else begin
-				data_out_ready_mem <= 1'b0;
+				// Do nothing...
 			end
 		end
 	end
 end
 
-assign wr_mem = cmd == CMD_WRITE;
+// FIFO out
+reg [1:0] tail_out;
+
+// Memory FIFO interface
+always @ (negedge clk or negedge reset_n) begin
+	if(reset_n == 1'b0) begin
+		tail_out <= 0;
+		data_out_ready_mem <= 1'b0;
+		address_mem <= 0;
+		data_out_mem <= 0;
+	end
+	else begin
+		if(head_out != tail_out) begin
+			address_mem <= address_out_fifo[tail_out];
+			data_out_mem <= data_out_fifo[tail_out];
+			
+			tail_out <= tail_out == 3 ? 0 : tail_out + 1;
+			data_out_ready_mem <= 1'b1;
+		end
+		else begin
+			data_out_ready_mem <= 1'b0;
+		end
+	end
+end
+
+assign wr_mem = cmd == CMD_DATA_RXD || cmd == CMD_WRITE_DATA;
 
 endmodule
 	
