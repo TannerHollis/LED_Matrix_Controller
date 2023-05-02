@@ -18,6 +18,9 @@ module led_matrix_controller
 		data_out_ready_fifo,
 		fifo_full,
 		
+		// Frame Flip
+		frame_buffer_select,
+		
 		// Color output
 		r0,
 		r1,
@@ -48,6 +51,9 @@ input [7:0] data_in_fifo;
 input data_in_ready_fifo;
 output reg data_out_ready_fifo;
 input fifo_full;
+
+// Define frame buffer select
+input frame_buffer_select;
 
 // Define data IO
 output reg [ROWS - 1:0]r0;
@@ -156,7 +162,7 @@ end
 genvar i;
 generate
 	for (i = 0; i < ROWS ; i = i + 1) begin : color_output
-		always @ (posedge clk or negedge reset_n) begin
+		always @ (negedge clk_pixel or negedge reset_n) begin
 			if(reset_n == 1'b0) begin
 				r0[i] <= 0;
 				r1[i] <= 0;
@@ -166,27 +172,31 @@ generate
 				b1[i] <= 0;
 			end
 			else begin
-				if(q_clk_pixel == 3'b10) begin // Falling edge of pixel clock
-					r0[i] <= rgb0[pixel_count][i][line_buffer][7:5] > pwm;
-					r1[i] <= rgb1[pixel_count][i][line_buffer][7:5] > pwm;
-					g0[i] <= rgb0[pixel_count][i][line_buffer][4:2] > pwm;
-					g1[i] <= rgb1[pixel_count][i][line_buffer][4:2] > pwm;
-					b0[i] <= rgb0[pixel_count][i][line_buffer][1:0] > pwm;
-					b1[i] <= rgb1[pixel_count][i][line_buffer][1:0] > pwm;
-				end
+				r0[i] <= rgb0[pixel_count][i][line_buffer][7:5] > pwm;
+				//r0[i] <= 2 > pwm;
+				r1[i] <= rgb1[pixel_count][i][line_buffer][7:5] > pwm;
+				//r1[i] <= 2 > pwm;
+				g0[i] <= rgb0[pixel_count][i][line_buffer][4:2] > pwm;
+				//g0[i] <= 2 > pwm;
+				g1[i] <= rgb1[pixel_count][i][line_buffer][4:2] > pwm;
+				//g1[i] <= 2 > pwm;
+				b0[i] <= rgb0[pixel_count][i][line_buffer][1:0] > pwm;
+				//b0[i] <= 2 > pwm;
+				b1[i] <= rgb1[pixel_count][i][line_buffer][1:0] > pwm;
+				//b1[i] <= 2 > pwm;
 			end
 		end
 	end
 endgenerate
 	
 // RGB/Pixel counter logic
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk_pixel or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
 		pixel_count <= 0;
 	end
 	else begin
 		if(state == MATRIX_PUSHING_PIXELS) begin
-			if(q_clk_pixel == 3'b01 && led_clk_en == 1'b1) begin // Rising edge of pixel clock
+			if(led_clk_en == 1'b1) begin // Rising edge of pixel clock
 				pixel_count <= pixel_count + 1;
 			end
 			else begin
@@ -280,8 +290,8 @@ always @ (negedge clk or negedge reset_n) begin
 				if(line_buffer_load != line_buffer) begin
 					if(line_select_load == 15) begin
 						line_select_load <= 0;
-						address_fifo <= ADDRESS_START + PIXELS_PER_ROW;
-						address_base <= ADDRESS_START + PIXELS_PER_ROW;
+						address_fifo <= frame_buffer_select == 1'b0 ? ADDRESS_START : ADDRESS_START + (PIXELS_PER_ROW * 32 * ROWS);
+						address_base <= frame_buffer_select == 1'b0 ? ADDRESS_START : ADDRESS_START + (PIXELS_PER_ROW * 32 * ROWS);
 					end
 					else begin
 						line_select_load <= line_select_load + 1;
@@ -361,7 +371,6 @@ always @ (posedge clk or negedge reset_n) begin
 			if(flip_in == 1'b1) begin
 				if(row_count_in == ROWS - 1) begin
 					row_count_in <= 0;
-					flip_in <= 1'b0;
 					if(pixels_loaded == PIXELS_PER_ROW - 1) begin
 						pixels_loaded <= 0;
 						line_buffer_load <= ~line_buffer_load;
@@ -384,6 +393,7 @@ always @ (posedge clk or negedge reset_n) begin
 		end
 	end
 end
+
 
 assign wr_fifo = 1'b0;
 assign led_clk = clk_pixel & led_clk_en;

@@ -22,51 +22,53 @@
 ///////////////////////////////////////////////////////////////////////////////
 
 module spi_slave
-  #(parameter SPI_MODE = 0)
-  (
-   // Control/Data Signals,
-   input            i_Rst_L,    // FPGA Reset
-   input            i_Clk,      // FPGA Clock
-   output reg       o_RX_DV,    // Data Valid pulse (1 clock cycle)
-   output reg [7:0] o_RX_Byte,  // Byte received on MOSI
-	output reg [8:0] o_RX_Byte_Count,
-   input            i_TX_DV,    // Data Valid pulse to register i_TX_Byte
-   input  [7:0]     i_TX_Byte,  // Byte to serialize to MISO.
+	#(
+		parameter SPI_MODE = 0
+	)
+	(
+		// Control/Data Signals,
+		input            i_Rst_L,    // FPGA Reset
+		input            i_Clk,      // FPGA Clock
+		output reg       o_RX_DV,    // Data Valid pulse (1 clock cycle)
+		output reg [7:0] o_RX_Byte,  // Byte received on MOSI
+		output reg [8:0] o_RX_Byte_Count,
+		input            i_TX_DV,    // Data Valid pulse to register i_TX_Byte
+		input  [7:0]     i_TX_Byte,  // Byte to serialize to MISO.
 
-   // SPI Interface
-   input  wire i_SPI_Clk,
-   output wire o_SPI_MISO,
-   input  wire i_SPI_MOSI,
-   input  wire i_SPI_CS_n
-   );
+		// SPI Interface
+		input  wire i_SPI_Clk,
+		output wire o_SPI_MISO,
+		input  wire i_SPI_MOSI,
+		input  wire i_SPI_CS_n
+	);
 
+	// SPI Interface (All Runs at SPI Clock Domain)
+	wire w_CPOL;     // Clock polarity
+	wire w_CPHA;     // Clock phase
+	wire w_SPI_Clk;  // Inverted/non-inverted depending on settings
+	wire w_SPI_MISO_Bit;
 
-  // SPI Interface (All Runs at SPI Clock Domain)
-  wire w_CPOL;     // Clock polarity
-  wire w_CPHA;     // Clock phase
-  wire w_SPI_Clk;  // Inverted/non-inverted depending on settings
-  wire w_SPI_MISO_Bit;
-  
-  reg [2:0] r_RX_Bit_Count;
-  reg [2:0] r_TX_Bit_Count;
-  reg [7:0] r_Temp_RX_Byte;
-  reg [7:0] r_RX_Byte;
-  reg r_RX_Done, r2_RX_Done, r3_RX_Done;
-  reg [7:0] r_TX_Byte;
+	reg [2:0] r_RX_Bit_Count;
+	reg [2:0] r_TX_Bit_Count;
+	reg [8:0] r_RX_Byte_Count;
+	reg [7:0] r_Temp_RX_Byte;
+	reg [7:0] r_RX_Byte;
+	reg r_RX_Done, r2_RX_Done, r3_RX_Done;
+	reg [7:0] r_TX_Byte;
 
-  // CPOL: Clock Polarity
-  // CPOL=0 means clock idles at 0, leading edge is rising edge.
-  // CPOL=1 means clock idles at 1, leading edge is falling edge.
-  assign w_CPOL  = (SPI_MODE == 2) | (SPI_MODE == 3);
+	// CPOL: Clock Polarity
+	// CPOL=0 means clock idles at 0, leading edge is rising edge.
+	// CPOL=1 means clock idles at 1, leading edge is falling edge.
+	assign w_CPOL  = (SPI_MODE == 2) | (SPI_MODE == 3);
 
-  // CPHA: Clock Phase
-  // CPHA=0 means the "out" side changes the data on trailing edge of clock
-  //              the "in" side captures data on leading edge of clock
-  // CPHA=1 means the "out" side changes the data on leading edge of clock
-  //              the "in" side captures data on the trailing edge of clock
-  assign w_CPHA  = (SPI_MODE == 1) | (SPI_MODE == 3);
+	// CPHA: Clock Phase
+	// CPHA=0 means the "out" side changes the data on trailing edge of clock
+	//              the "in" side captures data on leading edge of clock
+	// CPHA=1 means the "out" side changes the data on leading edge of clock
+	//              the "in" side captures data on the trailing edge of clock
+	assign w_CPHA  = (SPI_MODE == 1) | (SPI_MODE == 3);
 
-  assign w_SPI_Clk = w_CPHA ? ~i_SPI_Clk : i_SPI_Clk;
+	assign w_SPI_Clk = w_CPHA ? ~i_SPI_Clk : i_SPI_Clk;
 
 
 
@@ -78,7 +80,7 @@ module spi_slave
     begin
       r_RX_Bit_Count <= 0;
       r_RX_Done      <= 1'b0;
-		o_RX_Byte_Count <= 0;
+		o_RX_Byte_Count <= 9'h000;
     end 
     else
     begin
@@ -100,7 +102,6 @@ module spi_slave
 
     end // else: !if(i_SPI_CS_n)
   end // always @ (posedge w_SPI_Clk or posedge i_SPI_CS_n)
-
 
 
   // Purpose: Cross from SPI Clock Domain to main FPGA clock domain

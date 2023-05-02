@@ -136,7 +136,6 @@ end
 reg [ADDRESS_WIDTH - 1:0] address_ram;
 reg wr_ram;
 reg [7:0] data_in_ram;
-wire [7:0] data_out_ram;
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
 
 // Latch output to RAM
@@ -167,6 +166,7 @@ always @ (negedge clk or negedge reset_n) begin
 		end
 		else begin
 			data_out_ready_sr[0] <= 0;
+			wr_ram <= 0;
 		end
 		data_out_ready_sr[1] <= data_out_ready_sr[0];
 		data_out_ready_sr[2] <= data_out_ready_sr[1];
@@ -174,15 +174,20 @@ always @ (negedge clk or negedge reset_n) begin
 end
 
 assign data_out_ready = data_out_ready_sr[1];
-assign data_out = data_out_ram;
 
 // RAM instantiation 8 bit x 16384
-ram ram (
-	.address(address_ram),
-	.clock(clk),
-	.data(data_in_ram),
-	.wren(wr_ram),
-	.q(data_out_ram)
+single_port_ram 
+	#(
+		.ADDRESS_WIDTH(ADDRESS_WIDTH),
+		.DATA_WIDTH(8)
+	)
+	single_port_ram
+	(
+		.address(address_ram),
+		.clock(clk),
+		.data(data_in_ram),
+		.wren(wr_ram),
+		.q(data_out)
 	);
 
 	
