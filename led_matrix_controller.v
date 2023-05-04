@@ -269,23 +269,30 @@ localparam ADDRESS_FLIP_OFFSET = PIXELS_PER_ROW * 16;
 // Define load pixel states
 reg [2:0] req_state;
 localparam [2:0]
-	LOAD_IDLE = 0,
-	LOAD_0 = 1,
-	LOAD_1 = 2,
-	LOAD_WAIT = 3;
+	LOAD_INIT = 0,
+	LOAD_IDLE = 1,
+	LOAD_0 = 2,
+	LOAD_1 = 3,
+	LOAD_WAIT = 4;
 	
 // Pixel RAM read req logic
 always @ (negedge clk or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
 		row_count_out <= 0;
 		pixels_reqd <= 0;
-		req_state <= LOAD_IDLE;
-		address_fifo <= ADDRESS_START + PIXELS_PER_ROW;
-		address_base <= ADDRESS_START + PIXELS_PER_ROW;
-		line_select_load <= 1;
+		req_state <= LOAD_INIT;
+		address_fifo <= ADDRESS_START;
+		address_base <= ADDRESS_START;
+		line_select_load <= 0;
+		data_out_ready_fifo <= 1'b0;
 	end
 	else begin
 		case(req_state)
+			LOAD_INIT : begin
+				data_out_ready_fifo <= 1'b1;
+				req_state <= LOAD_0;
+			end
+		
 			LOAD_IDLE : begin
 				if(line_buffer_load != line_buffer) begin
 					if(line_select_load == 15) begin
@@ -364,7 +371,7 @@ always @ (posedge clk or negedge reset_n) begin
 		flip_in <= 0;
 		row_count_in <= 0;
 		pixels_loaded <= 0;
-		line_buffer_load <= 1'b1;
+		line_buffer_load <= 1'b0;
 	end
 	else begin
 		if(data_in_ready_fifo == 1'b1) begin

@@ -21,17 +21,22 @@ localparam CPOL = 0;
 localparam CPHA = 0;
 
 //Clock Buffer for edge trigger detection
-reg [1:0] clk;
+reg [2:0] clk;
+reg clk_meta;
 wire clk_neg;
 wire clk_pos;
 
 //Declare clocks configured with CPOL and CPHA
-always @(posedge clk_sb) clk <= {clk[0], clk_spi};
-assign clk_pos = ((clk == 2'b01) && ((CPOL == 0) || (CPOL == 3))) || ((clk == 2'b10) && ((CPOL == 1) || (CPOL == 2)));
-assign clk_neg = ((clk == 2'b10) && ((CPOL == 0) || (CPOL == 3))) || ((clk == 2'b01) && ((CPOL == 1) || (CPOL == 2)));
+always @(posedge clk_sb) clk_meta <= clk_spi;
+always @(posedge clk_sb) clk <= {clk[1], clk[0], clk_meta};
+assign clk_pos = ((clk[2:1] == 2'b01) && ((CPOL == 0) || (CPOL == 3))) || ((clk == 2'b10) && ((CPOL == 1) || (CPOL == 2)));
+assign clk_neg = ((clk[2:1] == 2'b10) && ((CPOL == 0) || (CPOL == 3))) || ((clk == 2'b01) && ((CPOL == 1) || (CPOL == 2)));
 
 //Input data buffer due to clock buffer
-reg [1:0] mosi_buffer;
+reg [2:0] mosi_buffer;
+reg mosi_meta;
+always @(posedge clk_sb) mosi_meta <= mosi;
+always @(posedge clk_sb) mosi_buffer <= {mosi_buffer[1], mosi_buffer[0], mosi_meta};
 
 //Handle SPI in 24-bits format, so we need a 5 bits counter to count the bits as they come in
 reg [4:0] bitcnt_rx;
@@ -48,7 +53,6 @@ begin
 	begin
 		bitcnt_rx <= 5'd0;
 		mosi_data_in <= 8'd0;
-		mosi_buffer <= 2'd0;
 		mosi_rx <= 1'b0;
 		mosi_data_out <= 8'd0;
 	end
@@ -58,16 +62,14 @@ begin
 		begin
 			bitcnt_rx <= 5'd0;
 			mosi_data_in <= 8'd0;
-			mosi_buffer <= 2'd0;
 			mosi_rx <= 1'b0;
 			mosi_data_out <= 8'd0;
 		end
 		else begin
-			mosi_buffer <= {mosi_buffer[0], mosi};
 			if(clk_pos) begin
 				if(bitcnt_rx == 5'd7) begin
 					bitcnt_rx <= 0;
-					mosi_data_out <= {mosi_data_in[6:0], mosi_buffer[0]};
+					mosi_data_out <= {mosi_data_in[6:0], mosi_buffer[2]};
 					mosi_rx <= 1'b1;
 				end
 				else begin
@@ -76,10 +78,11 @@ begin
 				end
 
 				//Implement left-shift MSB register with buffered miso input(previous value)
-				mosi_data_in <= {mosi_data_in[6:0], mosi_buffer[0]};
+				mosi_data_in <= {mosi_data_in[6:0], mosi_buffer[2]};
 			end
 			else begin
 				mosi_rx <= 1'b0;
+				mosi_data_in <= mosi_data_in;
 			end
 		end
 	end
