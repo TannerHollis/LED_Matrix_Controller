@@ -1,6 +1,7 @@
 module memory_arbiter
 	#(
 		parameter ADDRESS_WIDTH = 25,
+		parameter DATA_WIDTH = 16,
 		parameter PERIPHERALS = 3,
 		parameter PERIPHERALS_FIFO_DEPTH = 32,
 		parameter FIFO_DEPTH = 2
@@ -28,15 +29,15 @@ input clk;
 input [(ADDRESS_WIDTH * PERIPHERALS) - 1:0] address;
 input [PERIPHERALS - 1:0] wr;
 output [PERIPHERALS - 1:0] fifo_full;
-input [(8 * PERIPHERALS) - 1:0] data_in;
+input [(DATA_WIDTH * PERIPHERALS) - 1:0] data_in;
 input [PERIPHERALS - 1:0] data_in_ready;
-output [7:0] data_out;
+output [DATA_WIDTH - 1:0] data_out;
 output [PERIPHERALS - 1:0] data_out_ready;
 input reset_n;
 
 // Fanout address and data inputs
 wire [ADDRESS_WIDTH - 1:0] address_w [PERIPHERALS - 1:0];
-wire [7:0] data_in_w [PERIPHERALS - 1:0];
+wire [DATA_WIDTH - 1:0] data_in_w [PERIPHERALS - 1:0];
 genvar k;
 generate
 	for(k = 0; k < PERIPHERALS; k = k + 1) begin : fanout_inst
@@ -48,7 +49,7 @@ endgenerate
 // FIFO for each peripheral
 reg [ADDRESS_WIDTH - 1:0] address_peripherals_sr [PERIPHERALS - 1:0][PERIPHERALS_FIFO_DEPTH - 1:0];
 reg wr_peripherals_sr [PERIPHERALS - 1:0][PERIPHERALS_FIFO_DEPTH - 1:0];
-reg [7:0] data_in_peripherals_sr [PERIPHERALS - 1:0][PERIPHERALS_FIFO_DEPTH - 1:0];
+reg [DATA_WIDTH - 1:0] data_in_peripherals_sr [PERIPHERALS - 1:0][PERIPHERALS_FIFO_DEPTH - 1:0];
 reg [PERIPHERALS_FIFO_WIDTH - 1:0] head_peripherals [PERIPHERALS - 1:0];
 reg [PERIPHERALS_FIFO_WIDTH - 1:0] head_peripherals_next [PERIPHERALS - 1:0];
 reg [PERIPHERALS_FIFO_WIDTH - 1:0] tail_peripherals [PERIPHERALS - 1:0];
@@ -96,7 +97,7 @@ endgenerate
 // Main FIFO
 reg [ADDRESS_WIDTH - 1:0] address_sr [FIFO_DEPTH - 1:0];
 reg wr_sr [FIFO_DEPTH - 1:0];
-reg [7:0] data_in_sr [FIFO_DEPTH - 1:0];
+reg [DATA_WIDTH - 1:0] data_in_sr [FIFO_DEPTH - 1:0];
 reg [PERIPHERALS - 1:0] peripheral_select_sr [FIFO_DEPTH - 1:0];
 reg [FIFO_WIDTH - 1:0] head;
 reg [FIFO_WIDTH - 1:0] tail;
@@ -135,7 +136,7 @@ end
 // RAM interface
 reg [ADDRESS_WIDTH - 1:0] address_ram;
 reg wr_ram;
-reg [7:0] data_in_ram;
+reg [DATA_WIDTH - 1:0] data_in_ram;
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
 
 // Latch output to RAM
@@ -175,11 +176,11 @@ end
 
 assign data_out_ready = data_out_ready_sr[1];
 
-// RAM instantiation 8 bit x 16384
+// RAM instantiation 16 bit x 16384
 single_port_ram 
 	#(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH),
-		.DATA_WIDTH(8)
+		.DATA_WIDTH(DATA_WIDTH)
 	)
 	single_port_ram
 	(

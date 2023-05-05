@@ -1,6 +1,7 @@
 module device_controller
 	#(
-		parameter ADDRESS_WIDTH = 25
+		parameter ADDRESS_WIDTH = 25,
+		parameter DATA_WIDTH = 16
 	)
 	(
 		// Clock IO
@@ -37,9 +38,9 @@ input data_in_ready;
 output reg [ADDRESS_WIDTH - 1:0] address_mem;
 output reg wr_mem;
 input fifo_full_mem;
-input [7:0] data_in_mem;
+input [DATA_WIDTH - 1:0] data_in_mem;
 input data_in_ready_mem;
-output reg [7:0] data_out_mem;
+output reg [DATA_WIDTH - 1:0] data_out_mem;
 output reg data_out_ready_mem;
 
 output reg frame_buffer_select;
@@ -97,7 +98,7 @@ reg [7:0] cmd;
 // Define address output
 reg [ADDRESS_WIDTH - 1:0] address_in;
 reg [ADDRESS_WIDTH - 1:0] address_out_fifo [3:0];
-reg [7:0] data_out_fifo [3:0];
+reg [DATA_WIDTH - 1:0] data_out_fifo [3:0];
 reg [1:0] head_out;
 
 // Define cs_n buffer
@@ -105,6 +106,9 @@ reg [2:0] cs_n_buffer;
 reg cs_n_meta;
 always @ (posedge clk_sys) cs_n_meta <= cs_n;
 always @ (posedge clk_sys) cs_n_buffer <= { cs_n_buffer[1], cs_n_buffer[0], cs_n_meta };
+
+// Define high_low
+reg high_low;
 
 always @ (posedge clk_sys or negedge reset_n) begin
 	if (reset_n == 1'b0) begin
@@ -114,6 +118,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 		wr_mem <= 1'b0;
 		data_in_count <= 0;
 		frame_buffer_select <= 1'b0;
+		high_low <= 1'b0;
 	end
 	else begin
 		if (cs_n_buffer[1]) begin
@@ -121,6 +126,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 			cmd <= 0;
 			wr_mem <= 1'b0;
 			data_in_count <= 0;
+			high_low <= 1'b0;
 		end
 		else begin
 			if(data_in_ready == 1'b1)
@@ -140,6 +146,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 							if(data_in_count == 4 && data_in_ready == 1'b1) begin
 								address_in <= {data_in_r[2], data_in_r[1], data_in_r[0], data_in};
 								state <= CMD_WRITE_DATA;
+								high_low <= 1'b0;
 								wr_mem <= 1'b1;
 							end
 						end
@@ -157,11 +164,18 @@ always @ (posedge clk_sys or negedge reset_n) begin
 				
 				CMD_WRITE_DATA : begin
 					if(data_in_ready == 1'b1) begin
-						address_out_fifo[head_out] <= address_in;
-						address_in <= address_in + 1;
-						data_out_fifo[head_out] <= data_in;
-						head_out <= head_out == 3 ? 0 : head_out + 1;
-						state <= CMD_WRITE_DATA;
+						if(high_low) begin
+							high_low <= 1'b0;
+							address_out_fifo[head_out] <= address_in;
+							address_in <= address_in + 1;
+							data_out_fifo[head_out] <= {data_in_r[0], data_in};
+							head_out <= head_out == 3 ? 0 : head_out + 1;
+							state <= CMD_WRITE_DATA;
+							high_low <= 1'b0;
+						end
+						else begin
+							high_low <= 1'b1;
+						end						
 					end
 				end
 				
@@ -197,20 +211,6 @@ always @ (negedge clk_sys or negedge reset_n) begin
 		end
 	end
 end
-
-wire [7:0] crc_out;
-
-reg [7:0] crc_reg;
-
-always @ (posedge clk_sys or negedge reset_n) begin
-	
-end
-
-crc_8bit crc_8bit
-	(
-		.data_in(data_in_r[0]),
-		.crc_out(crc_out)
-	);
 
 endmodule
 	

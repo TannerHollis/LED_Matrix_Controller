@@ -22,8 +22,9 @@ module top(
 	clk_in
 	);
 
-localparam PIXELS_PER_ROW = 256;
 localparam ADDRESS_WIDTH = 14;
+localparam DATA_WIDTH = 16;
+localparam PIXELS_PER_ROW = 256;
 localparam ROWS = 1;
 localparam MEMORY_ARBITER_PERIPHERALS = 2;
 	
@@ -48,7 +49,7 @@ input reset_n;
 input clk_in;
 
 // Define memory arbiter Outputs
-wire [7:0] data_out_mem;
+wire [DATA_WIDTH - 1:0] data_out_mem;
 wire [MEMORY_ARBITER_PERIPHERALS - 1:0] data_out_ready_mem;
 wire [MEMORY_ARBITER_PERIPHERALS - 1:0] fifo_full_mem;
 
@@ -100,13 +101,14 @@ spi_slave spi_slave(
 // Define Device Controller Outputs
 wire [ADDRESS_WIDTH - 1:0] address_dc;
 wire wr_dc;
-wire [7:0] data_out_dc;
+wire [DATA_WIDTH - 1:0] data_out_dc;
 wire data_out_ready_dc;
 wire frame_buffer_select;
 
 device_controller 
 	#(
-		.ADDRESS_WIDTH(ADDRESS_WIDTH)
+		.ADDRESS_WIDTH(ADDRESS_WIDTH),
+		.DATA_WIDTH(DATA_WIDTH)
 	)
 	device_controller
 	(
@@ -138,12 +140,12 @@ device_controller
 // Define LED Matrix Controller Outputs
 wire [ADDRESS_WIDTH - 1:0] address_led;
 wire wr_led;
-wire [7:0] data_in_led;
 wire data_out_ready_led;
 	
 led_matrix_controller 
 	#(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH),
+		.DATA_WIDTH(DATA_WIDTH),
 		.PIXELS_PER_ROW(PIXELS_PER_ROW),
 		.ROWS(ROWS)
 	)
@@ -180,17 +182,18 @@ led_matrix_controller
 // Define memory arbiter combined signals
 wire [ADDRESS_WIDTH * MEMORY_ARBITER_PERIPHERALS - 1:0] address_mem_arb;
 wire [MEMORY_ARBITER_PERIPHERALS - 1:0] wr_mem_arb;
-wire [8 * MEMORY_ARBITER_PERIPHERALS - 1:0] data_in_mem_arb;
+wire [DATA_WIDTH * MEMORY_ARBITER_PERIPHERALS - 1:0] data_in_mem_arb;
 wire [MEMORY_ARBITER_PERIPHERALS - 1:0] data_in_ready_mem_arb;
 
 assign address_mem_arb = {address_dc, address_led};
 assign wr_mem_arb = {wr_dc, wr_led};
-assign data_in_mem_arb = {data_out_dc, 8'd0};
+assign data_in_mem_arb = {data_out_dc, 16'd0};
 assign data_in_ready_mem_arb = {data_out_ready_dc, data_out_ready_led};
 
 memory_arbiter 
 	#(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH),
+		.DATA_WIDTH(DATA_WIDTH),
 		.PERIPHERALS(MEMORY_ARBITER_PERIPHERALS),
 		.PERIPHERALS_FIFO_DEPTH(32),
 		.FIFO_DEPTH(4)

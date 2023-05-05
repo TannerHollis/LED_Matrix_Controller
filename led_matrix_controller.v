@@ -1,6 +1,7 @@
 module led_matrix_controller 
 	#( 
 		parameter ADDRESS_WIDTH = 25,
+		parameter DATA_WIDTH = 16,
 		parameter PIXELS_PER_ROW = 10,
 		parameter ROWS = 8
 	)
@@ -47,7 +48,7 @@ input clk_pwm;
 
 output reg [ADDRESS_WIDTH - 1:0] address_fifo;
 output wr_fifo;
-input [7:0] data_in_fifo;
+input [DATA_WIDTH - 1:0] data_in_fifo;
 input data_in_ready_fifo;
 output reg data_out_ready_fifo;
 input fifo_full;
@@ -71,8 +72,8 @@ output reg [4:0] line_select;
 input reset_n;
 
 // Define pixel colors, double-buffered = pixel | n or n+16 | row | line_buffer
-reg [7:0] rgb0 [PIXELS_PER_ROW - 1:0][ROWS - 1:0][1:0];
-reg [7:0] rgb1 [PIXELS_PER_ROW - 1:0][ROWS - 1:0][1:0];
+reg [DATA_WIDTH - 1:0] rgb0 [PIXELS_PER_ROW - 1:0][ROWS - 1:0][1:0];
+reg [DATA_WIDTH - 1:0] rgb1 [PIXELS_PER_ROW - 1:0][ROWS - 1:0][1:0];
 reg line_buffer;
 
 // Define matrix state register and states
@@ -94,7 +95,7 @@ reg [1:0] q_clk_pwm;
 reg [1:0] q_clk_pixel;
 
 // Define pwm shift register
-reg [2:0] pwm;
+reg [5:0] pwm;
 
 // Define pixel clk enable
 reg led_clk_en;
@@ -172,17 +173,17 @@ generate
 				b1[i] <= 0;
 			end
 			else begin
-				r0[i] <= rgb0[pixel_count][i][line_buffer][7:5] > pwm;
+				r0[i] <= rgb0[pixel_count][i][line_buffer][15:11] > pwm;
 				//r0[i] <= 2 > pwm;
-				r1[i] <= rgb1[pixel_count][i][line_buffer][7:5] > pwm;
+				r1[i] <= rgb1[pixel_count][i][line_buffer][15:11] > pwm;
 				//r1[i] <= 2 > pwm;
-				g0[i] <= rgb0[pixel_count][i][line_buffer][4:2] > pwm;
+				g0[i] <= rgb0[pixel_count][i][line_buffer][10:5] > pwm;
 				//g0[i] <= 2 > pwm;
-				g1[i] <= rgb1[pixel_count][i][line_buffer][4:2] > pwm;
+				g1[i] <= rgb1[pixel_count][i][line_buffer][10:5] > pwm;
 				//g1[i] <= 2 > pwm;
-				b0[i] <= rgb0[pixel_count][i][line_buffer][1:0] > pwm;
+				b0[i] <= rgb0[pixel_count][i][line_buffer][4:0] > pwm;
 				//b0[i] <= 2 > pwm;
-				b1[i] <= rgb1[pixel_count][i][line_buffer][1:0] > pwm;
+				b1[i] <= rgb1[pixel_count][i][line_buffer][4:0] > pwm;
 				//b1[i] <= 2 > pwm;
 			end
 		end
@@ -230,7 +231,7 @@ always @ (posedge clk or negedge reset_n) begin
 end
 
 // Define pwm registers
-localparam [2:0] PWM_MAX = 7;
+localparam [5:0] PWM_MAX = 63;
 
 // PWM clock logic
 always @ (posedge clk or negedge reset_n) begin
