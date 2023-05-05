@@ -42,7 +42,7 @@ genvar k;
 generate
 	for(k = 0; k < PERIPHERALS; k = k + 1) begin : fanout_inst
 		assign address_w[k] = address[(k + 1)*ADDRESS_WIDTH - 1:k*ADDRESS_WIDTH];
-		assign data_in_w[k] = data_in[(k + 1)*8 - 1:k*8];
+		assign data_in_w[k] = data_in[(k + 1)*DATA_WIDTH - 1:k*DATA_WIDTH];
 	end
 endgenerate
 
