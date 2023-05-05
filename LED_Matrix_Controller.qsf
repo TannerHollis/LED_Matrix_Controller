@@ -103,19 +103,6 @@ set_global_assignment -name USE_SIGNALTAP_FILE output_files/stp1.stp
 set_instance_assignment -name GLOBAL_SIGNAL GLOBAL_CLOCK -to "pll:pll|altpll:altpll_component|pll_altpll:auto_generated|wire_pll1_clk[0]"
 set_global_assignment -name TIMING_ANALYZER_MULTICORNER_ANALYSIS ON
 set_global_assignment -name NUM_PARALLEL_PROCESSORS ALL
-set_global_assignment -name QIP_FILE spi_slave_intel/synthesis/spi_slave_intel.qip
-set_global_assignment -name VERILOG_FILE spi_slave_intel/synthesis/spi_slave_intel.v
-set_global_assignment -name VERILOG_FILE top.v
-set_global_assignment -name VERILOG_FILE spi_slave.v
-set_global_assignment -name VERILOG_FILE ram.v
-set_global_assignment -name VERILOG_FILE pll_pwm.v
-set_global_assignment -name VERILOG_FILE pll.v
-set_global_assignment -name VERILOG_FILE memory_arbiter.v
-set_global_assignment -name VERILOG_FILE led_matrix_controller.v
-set_global_assignment -name VERILOG_FILE device_controller.v
-set_global_assignment -name SIGNALTAP_FILE output_files/stp1.stp
-set_global_assignment -name VERILOG_FILE single_port_ram.v
-set_global_assignment -name SIGNALTAP_FILE output_files/spi.stp
 set_global_assignment -name SLD_NODE_CREATOR_ID 110 -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_ENTITY_NAME sld_signaltap -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_clk -to "pll:pll|altpll:altpll_component|pll_altpll:auto_generated|wire_pll1_clk[0]" -section_id auto_signaltap_0
@@ -170,8 +157,6 @@ set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[15] -
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[26] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[28] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT crc[29] -to auto_signaltap_0|vcc -section_id auto_signaltap_0
-set_global_assignment -name VERILOG_FILE crc_8bit.v
-set_global_assignment -name VERILOG_FILE spi_slave0.v
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[0] -to "spi_slave0:spi_slave0|bitcnt_rx[0]" -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[1] -to "spi_slave0:spi_slave0|bitcnt_rx[1]" -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_trigger_in[2] -to "spi_slave0:spi_slave0|bitcnt_rx[2]" -section_id auto_signaltap_0
@@ -229,3 +214,17 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK=00
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_INVERSION_MASK_LENGTH=98" -section_id auto_signaltap_0
 set_global_assignment -name SLD_FILE db/stp1_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name QIP_FILE spi_slave_intel/synthesis/spi_slave_intel.qip
+set_global_assignment -name VERILOG_FILE spi_slave_intel/synthesis/spi_slave_intel.v -library spi_slave_intel
+set_global_assignment -name VERILOG_FILE top.v
+set_global_assignment -name VERILOG_FILE spi_slave.v
+set_global_assignment -name VERILOG_FILE ram.v
+set_global_assignment -name VERILOG_FILE pll_pwm.v
+set_global_assignment -name VERILOG_FILE pll.v
+set_global_assignment -name VERILOG_FILE memory_arbiter.v
+set_global_assignment -name VERILOG_FILE led_matrix_controller.v
+set_global_assignment -name VERILOG_FILE device_controller.v
+set_global_assignment -name SIGNALTAP_FILE output_files/stp1.stp
+set_global_assignment -name VERILOG_FILE single_port_ram.v
+set_global_assignment -name SIGNALTAP_FILE output_files/spi.stp
+set_global_assignment -name VERILOG_FILE crc_8bit.v

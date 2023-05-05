@@ -85,19 +85,26 @@ localparam [2:0]
 	CMD_READ_DATA = 3,
 	CMD_DONE = 4;
 	
-
+// Define commands
 localparam [7:0]
 		CMD_WRITE = 10,
 		CMD_READ = 11,
 		CMD_FLIP = 20;
 
+// Define cmd register
 reg [7:0] cmd;
 
+// Define address output
 reg [ADDRESS_WIDTH - 1:0] address_in;
 reg [ADDRESS_WIDTH - 1:0] address_out_fifo [3:0];
 reg [7:0] data_out_fifo [3:0];
 reg [1:0] head_out;
 
+// Define cs_n buffer
+reg [2:0] cs_n_buffer;
+reg cs_n_meta;
+always @ (posedge clk_sys) cs_n_meta <= cs_n;
+always @ (posedge clk_sys) cs_n_buffer <= { cs_n_buffer[1], cs_n_buffer[0], cs_n_meta };
 
 always @ (posedge clk_sys or negedge reset_n) begin
 	if (reset_n == 1'b0) begin
@@ -109,7 +116,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 		frame_buffer_select <= 1'b0;
 	end
 	else begin
-		if (cs_n == 1'b1) begin
+		if (cs_n_buffer[1]) begin
 			state <= IDLE;
 			cmd <= 0;
 			wr_mem <= 1'b0;
@@ -192,6 +199,12 @@ always @ (negedge clk_sys or negedge reset_n) begin
 end
 
 wire [7:0] crc_out;
+
+reg [7:0] crc_reg;
+
+always @ (posedge clk_sys or negedge reset_n) begin
+	
+end
 
 crc_8bit crc_8bit
 	(

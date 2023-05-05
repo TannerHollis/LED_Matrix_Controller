@@ -76,33 +76,12 @@ pll_pwm
 		.c0(clk_pwm)
 	);
 
+
 // Define SPI slave Outputs
 wire [7:0] data_out_spi;
 wire data_out_ready_spi;
 
-//spi_slave 
-//	#(
-//		.SPI_MODE(0)
-//	)
-//	spi_slave
-//   (
-//		// Control/Data Signals,
-//		.i_Rst_L(reset_n),    			// FPGA Reset, active low
-//		.i_Clk(clk_sys),      			// FPGA Clock
-//		.o_RX_DV(data_out_ready_spi), // Data Valid pulse (1 clock cycle)
-//		.o_RX_Byte(data_out_spi),  	// Byte received on MOSI
-//		.o_RX_Byte_Count(),	
-//		.i_TX_DV(),   						// Data Valid pulse to register i_TX_Byte
-//		.i_TX_Byte(),  					// Byte to serialize to MISO.
-//
-//		// SPI Interface
-//		.i_SPI_Clk(sck),
-//		.o_SPI_MISO(miso),
-//		.i_SPI_MOSI(mosi),
-//		.i_SPI_CS_n(cs_n)        		// active low
-//   );
-
-spi_slave0 spi_slave0(
+spi_slave spi_slave(
 	.reset_n(reset_n),
 	.clk_sb(clk_sys),
 	.clk_spi(sck),
@@ -213,7 +192,7 @@ memory_arbiter
 	#(
 		.ADDRESS_WIDTH(ADDRESS_WIDTH),
 		.PERIPHERALS(MEMORY_ARBITER_PERIPHERALS),
-		.PERIPHERALS_FIFO_DEPTH(8),
+		.PERIPHERALS_FIFO_DEPTH(32),
 		.FIFO_DEPTH(4)
 	)
 	memory_arbiter
