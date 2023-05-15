@@ -24,6 +24,9 @@ module device_controller
 		
 		// Register out
 		frame_buffer_select,
+		color_format,
+		pixels_per_row,
+		panel_rows,
 		
 		// General IO
 		cs_n,
@@ -44,6 +47,9 @@ output reg [DATA_WIDTH - 1:0] data_out_mem;
 output reg data_out_ready_mem;
 
 output reg frame_buffer_select;
+output reg color_format;
+output reg [9:0] pixels_per_row;
+output reg [3:0] panel_rows;
 
 input cs_n;
 input reset_n;
@@ -90,7 +96,10 @@ localparam [2:0]
 localparam [7:0]
 		CMD_WRITE = 10,
 		CMD_READ = 11,
-		CMD_FLIP = 20;
+		CMD_FLIP = 20,
+		CMD_COLOR_FORMAT = 30,
+		CMD_PIXELS_PER_ROW = 40,
+		CMD_PANEL_ROWS = 50;
 
 // Define cmd register
 reg [7:0] cmd;
@@ -118,6 +127,9 @@ always @ (posedge clk_sys or negedge reset_n) begin
 		wr_mem <= 1'b0;
 		data_in_count <= 0;
 		frame_buffer_select <= 1'b0;
+		color_format <= 1'b0;
+		pixels_per_row <= 10;
+		panel_rows <= 1;
 		high_low <= 1'b0;
 	end
 	else begin
@@ -156,26 +168,58 @@ always @ (posedge clk_sys or negedge reset_n) begin
 						end
 						
 						CMD_FLIP: begin
-							frame_buffer_select <= ~frame_buffer_select;
-							state <= CMD_DONE;
+							if(data_in_count == 4 && data_in_ready == 1'b1) begin
+								frame_buffer_select <= data_in[0];
+								state <= CMD_DONE;
+							end
+						end
+						
+						CMD_COLOR_FORMAT : begin
+							if(data_in_count == 4 && data_in_ready == 1'b1) begin
+								color_format <= data_in[0];
+								state <= CMD_DONE;
+							end
+						end
+						
+						CMD_PIXELS_PER_ROW : begin
+							if(data_in_count == 5 && data_in_ready == 1'b1) begin
+								pixels_per_row[9:0] <= {data_in_r[0][2:0], data_in};
+								state <= CMD_DONE;
+							end
+						end
+						
+						CMD_PANEL_ROWS : begin
+							if(data_in_count == 5 && data_in_ready == 1'b1) begin
+								panel_rows[3:0] <= data_in[3:0];
+								state <= CMD_DONE;
+							end
 						end
 					endcase
 				end
 				
 				CMD_WRITE_DATA : begin
 					if(data_in_ready == 1'b1) begin
-						if(high_low) begin
-							high_low <= 1'b0;
+						if(color_format == 1'b0) begin
 							address_out_fifo[head_out] <= address_in;
 							address_in <= address_in + 1;
-							data_out_fifo[head_out] <= {data_in_r[0], data_in};
+							data_out_fifo[head_out] <= {8'd0, data_in};
 							head_out <= head_out == 3 ? 0 : head_out + 1;
 							state <= CMD_WRITE_DATA;
-							high_low <= 1'b0;
 						end
 						else begin
-							high_low <= 1'b1;
-						end						
+							if(high_low) begin
+								high_low <= 1'b0;
+								address_out_fifo[head_out] <= address_in;
+								address_in <= address_in + 1;
+								data_out_fifo[head_out] <= {data_in_r[0], data_in};
+								head_out <= head_out == 3 ? 0 : head_out + 1;
+								state <= CMD_WRITE_DATA;
+								high_low <= 1'b0;
+							end
+							else begin
+								high_low <= 1'b1;
+							end	
+						end
 					end
 				end
 				
