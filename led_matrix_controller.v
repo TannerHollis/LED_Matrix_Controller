@@ -445,12 +445,12 @@ always @ (posedge clk or negedge reset_n) begin
 					line_buffer_load <= ~line_buffer_load;
 					read_state <= LOAD_INIT;
 				end
+				pixel_data_wr_0 <= 1'b0;
+				pixel_data_wr_16 <= 1'b0;
 			end
 		endcase
 	end
 end
-
-
 
 // Address shift register for memory write delay
 reg [PIXELS_WIDTH - 1:0] pixel_data_write_address_0_sr;

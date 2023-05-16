@@ -122,7 +122,7 @@ device_controller
 	(
 		// Clock IO
 		.clk_sys(clk_sys),
-		.clk_device(clk_device),
+		.clk_device(clk_sys),
 		
 		// Data IO
 		.data_in(data_out_spi),

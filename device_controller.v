@@ -58,7 +58,7 @@ input reset_n;
 reg [7:0] data_in_r [3:0];
 
 // Data shift
-always @ (posedge clk_device or negedge reset_n) begin
+always @ (posedge clk_sys or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
 		data_in_r[0] <= 0;
 		data_in_r[1] <= 0;
@@ -128,7 +128,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 		data_in_count <= 0;
 		frame_buffer_select <= 1'b0;
 		color_format <= 1'b0;
-		pixels_per_row <= 10;
+		pixels_per_row <= 0;
 		panel_rows <= 1;
 		high_low <= 1'b0;
 	end
@@ -168,29 +168,29 @@ always @ (posedge clk_sys or negedge reset_n) begin
 						end
 						
 						CMD_FLIP: begin
-							if(data_in_count == 4 && data_in_ready == 1'b1) begin
+							if(data_in_count == 1 && data_in_ready == 1'b1) begin
 								frame_buffer_select <= data_in[0];
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_COLOR_FORMAT : begin
-							if(data_in_count == 4 && data_in_ready == 1'b1) begin
+							if(data_in_count == 1 && data_in_ready == 1'b1) begin
 								color_format <= data_in[0];
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_PIXELS_PER_ROW : begin
-							if(data_in_count == 5 && data_in_ready == 1'b1) begin
-								pixels_per_row[9:0] <= {data_in_r[0][2:0], data_in};
+							if(data_in_count == 2 && data_in_ready == 1'b1) begin
+								pixels_per_row <= {data_in_r[0][2:0], data_in};
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_PANEL_ROWS : begin
-							if(data_in_count == 5 && data_in_ready == 1'b1) begin
-								panel_rows[3:0] <= data_in[3:0];
+							if(data_in_count == 1 && data_in_ready == 1'b1) begin
+								panel_rows <= data_in[3:0];
 								state <= CMD_DONE;
 							end
 						end
