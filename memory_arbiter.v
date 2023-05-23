@@ -58,7 +58,7 @@ reg [PERIPHERALS_FIFO_WIDTH:0] fifo_count [PERIPHERALS - 1:0];
 genvar i;
 generate
 	for(i = 0; i < PERIPHERALS; i = i + 1) begin : peripheral_inst
-		always @ (posedge	clk or negedge reset_n) begin
+		always @ (posedge	clk) begin
 			if (reset_n == 1'b0) begin
 				head_peripherals[i] <= 0;
 				head_peripherals_next[i] <= 1;
@@ -76,7 +76,7 @@ generate
 			end
 		end
 		
-		always @ (negedge clk or negedge reset_n) begin
+		always @ (negedge clk) begin
 			if (reset_n == 1'b0) begin
 				fifo_count[i] <= 0;
 			end
@@ -105,7 +105,7 @@ reg [PERIPHERAL_WIDTH - 1:0] peripheral_count;
 reg [PERIPHERALS_FIFO_WIDTH - 1:0] weight;
 integer j;
 
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk) begin
 	if (reset_n == 1'b0) begin
 		head <= 0;
 		peripheral_count <= 0;
@@ -140,7 +140,7 @@ reg [DATA_WIDTH - 1:0] data_in_ram;
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
 
 // Latch output to RAM
-always @ (negedge clk or negedge reset_n) begin
+always @ (negedge clk) begin
 	if(reset_n == 1'b0) begin
 		address_ram <= 0;
 		wr_ram <= 1'b0;

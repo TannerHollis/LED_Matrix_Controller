@@ -103,7 +103,7 @@ reg [5:0] pwm;
 reg led_clk_en;
 
 // Clock crossing logic
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk) begin
 	if (reset_n == 1'b0) begin
 		q_clk_pwm <= 0;
 		q_clk_pixel <= 0;
@@ -115,7 +115,8 @@ always @ (posedge clk or negedge reset_n) begin
 end
 	
 // Main state machine logic
-always @ (posedge clk or negedge reset_n) begin
+reg [5:0] pwm_max;
+always @ (posedge clk) begin
 	if (reset_n == 1'b0) begin
 		state <= MATRIX_PREPARING_DATA;
 		strobe <= 1'b0;
@@ -130,9 +131,13 @@ always @ (posedge clk or negedge reset_n) begin
 			end
 			
 			MATRIX_WAITING: begin
-				if(q_clk_pwm == 3'b01) begin // Rising edge of pwm clock
+				if(q_clk_pwm == 2'b01) begin // Rising edge of pwm clock
 					state <= MATRIX_PUSHING_PIXELS;
 					oe <= 1'b1;
+					if(color_format)
+						pwm_max <= 63;
+					else
+						pwm_max <= 7;
 				end
 			end
 			
@@ -148,7 +153,7 @@ always @ (posedge clk or negedge reset_n) begin
 			end
 			
 			MATRIX_CLEAR_LATCH: begin
-				state <= MATRIX_PREPARING_DATA;
+				state <= MATRIX_WAITING;
 				strobe <= 1'b0;
 				oe <= 1'b0;
 			end
@@ -170,7 +175,7 @@ wire [DATA_WIDTH - 1:0] data_out_1;
 wire [DATA_WIDTH - 1:0] data_out_2;
 wire [DATA_WIDTH - 1:0] data_out_3;
 
-always @ (negedge clk_pixel or negedge reset_n) begin
+always @ (negedge clk_pixel) begin
 	if(reset_n == 1'b0) begin
 		r0 <= 0;
 		r1 <= 0;
@@ -203,7 +208,7 @@ always @ (negedge clk_pixel or negedge reset_n) begin
 end
 	
 // RGB/Pixel counter logic
-always @ (posedge clk_pixel or negedge reset_n) begin
+always @ (posedge clk_pixel) begin
 	if(reset_n == 1'b0) begin
 		pixel_count <= 0;
 		rgb0 <= 0;
@@ -234,7 +239,7 @@ always @ (posedge clk_pixel or negedge reset_n) begin
 end
 
 // Pixel clock enable logic
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk) begin
 	if(reset_n == 1'b0) begin
 		led_clk_en <= 1'b0;
 	end
@@ -253,31 +258,26 @@ always @ (posedge clk or negedge reset_n) begin
 	end
 end
 
-// Define pwm registers
-wire [5:0] pwm_max = color_format ? 63 : 7;
-
 // PWM clock logic
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk_pwm) begin
 	if(reset_n == 1'b0) begin
 		line_select <= 0;
 		pwm <= 0;
 		line_buffer <= 1'b0;
 	end
 	else begin
-		if(q_clk_pwm == 3'b01) begin // Rising edge of pwm clock
-			if(pwm == pwm_max) begin
-				pwm <= 0;
-				line_buffer <= ~line_buffer;
-				if (line_select == 15) begin
-					line_select <= 0;
-				end
-				else begin
-					line_select <= line_select + 1;
-				end
+		if(pwm == pwm_max) begin
+			pwm <= 0;
+			line_buffer <= ~line_buffer;
+			if (line_select == 15) begin
+				line_select <= 0;
 			end
 			else begin
-				pwm <= pwm + 1;
+				line_select <= line_select + 1;
 			end
+		end
+		else begin
+			pwm <= pwm + 1;
 		end
 	end
 end
@@ -307,7 +307,7 @@ localparam [2:0]
 	LOAD_WAIT = 4;
 	
 // Pixel RAM read req logic
-always @ (negedge clk or negedge reset_n) begin
+always @ (negedge clk) begin
 	if(reset_n == 1'b0) begin
 		pixels_reqd <= 0;
 		req_state <= LOAD_INIT;
@@ -327,8 +327,8 @@ always @ (negedge clk or negedge reset_n) begin
 				if(line_buffer_load != line_buffer) begin
 					if(line_select_load == 15) begin
 						line_select_load <= 0;
-						address_fifo <= frame_buffer_select == 1'b0 ? address_start : address_start + address_flip_display;
-						address_base <= frame_buffer_select == 1'b0 ? address_start : address_start + address_flip_display;
+						address_fifo <= !frame_buffer_select ? address_start : address_start + address_flip_display;
+						address_base <= !frame_buffer_select ? address_start : address_start + address_flip_display;
 					end
 					else begin
 						line_select_load <= line_select_load + 1;
@@ -340,16 +340,25 @@ always @ (negedge clk or negedge reset_n) begin
 					
 					req_state <= LOAD_0;
 				end
-				else begin
+				else begin 
 					data_out_ready_fifo <= 1'b0;
 				end
 			end
 			
 			LOAD_0: begin
 				if(fifo_full == 1'b0) begin
-					address_fifo <= address_fifo + address_flip_row;
-					req_state <= LOAD_1;
-					data_out_ready_fifo <= 1'b1;
+					if(pixels_reqd == pixels_per_row_in - 1) begin
+						pixels_reqd <= 0;
+						req_state <= LOAD_1; // Done loading pixels entire row
+						data_out_ready_fifo <= 1'b1;
+						address_fifo <= address_base + address_flip_row;
+					end
+					else begin
+						pixels_reqd <= pixels_reqd + 1;
+						req_state <= LOAD_0; // Load another pixel in row 0 + n
+						data_out_ready_fifo <= 1'b1;
+						address_fifo <= address_fifo + 1;
+					end
 				end
 				else begin
 					data_out_ready_fifo <= 1'b0;
@@ -362,14 +371,14 @@ always @ (negedge clk or negedge reset_n) begin
 						pixels_reqd <= 0;
 						req_state <= LOAD_WAIT; // Done loading pixels entire row
 						data_out_ready_fifo <= 1'b0;
+						address_base <= address_base + pixels_per_row_in;
 					end
 					else begin
 						pixels_reqd <= pixels_reqd + 1;
-						req_state <= LOAD_0; // Load another row
+						req_state <= LOAD_1; // Load another pixel in row 16 + n
 						data_out_ready_fifo <= 1'b1;
+						address_fifo <= address_fifo + 1;
 					end
-					address_fifo <= address_base + 1;
-					address_base <= address_base + 1;
 				end
 				else begin
 					data_out_ready_fifo <= 1'b0;
@@ -384,20 +393,17 @@ always @ (negedge clk or negedge reset_n) begin
 end
 
 // Pixel RAM read loaded logic
-reg flip_in;
 reg [2:0] read_state;
 reg pixel_data_wr_0;
 reg pixel_data_wr_16;
-reg [DATA_WIDTH - 1:0] pixel_data_out;
 reg [DATA_WIDTH - 1:0] pixel_data_in_0;
 reg [DATA_WIDTH - 1:0] pixel_data_in_16;
 reg [PIXELS_WIDTH - 1:0] pixel_data_write_address_0;
 reg [PIXELS_WIDTH - 1:0] pixel_data_write_address_16;
 
-always @ (posedge clk or negedge reset_n) begin
+always @ (posedge clk) begin
 	if(reset_n == 1'b0) begin
-		flip_in <= 0;
-		read_state <= LOAD_INIT;
+		read_state <= LOAD_0;
 		pixels_loaded <= 0;
 		line_buffer_load <= 1'b0;
 		pixel_data_wr_0 <= 1'b0;
@@ -409,30 +415,47 @@ always @ (posedge clk or negedge reset_n) begin
 	end
 	else begin
 		case(read_state)
-			LOAD_INIT : begin
+			// Loading row 0 + n
+			LOAD_0: begin
 				if(data_in_ready_fifo == 1'b1) begin
-					if(flip_in == 1'b1) begin
-						if(pixels_loaded == pixels_per_row_in - 1) begin
-							pixels_loaded <= 0;
-							read_state <= LOAD_WAIT;
-						end
-						else begin
-							pixels_loaded <= pixels_loaded + 1;
-						end
-						
-						pixel_data_write_address_16 <= pixel_data_write_address_16 == pixels_per_row_in - 1 ? 0 : pixel_data_write_address_16 + 1;
-						pixel_data_wr_16 <= 1'b1;
-						pixel_data_wr_0 <= 1'b0;
-						pixel_data_in_16 <= data_in_fifo;
+					if(pixels_loaded == pixels_per_row_in - 1) begin
+						pixels_loaded <= 0;
+						read_state <= LOAD_1; // Done loading pixels entire row
+						pixel_data_write_address_0 <= pixels_loaded;
 					end
 					else begin
-						pixel_data_write_address_0 <= pixel_data_write_address_0 == pixels_per_row_in - 1 ? 0 : pixel_data_write_address_0 + 1;
-						pixel_data_wr_0 <= 1'b1;
-						pixel_data_wr_16 <= 1'b0;
-						pixel_data_in_0 <= data_in_fifo;
+						pixels_loaded <= pixels_loaded + 1;
+						read_state <= LOAD_0; // Load another pixel in row 0 + n
+						pixel_data_write_address_0 <= pixels_loaded;
 					end
 					
-					flip_in <= ~flip_in;
+					pixel_data_wr_0 <= 1'b1;
+					pixel_data_wr_16 <= 1'b0;
+					pixel_data_in_0 <= data_in_fifo;
+				end
+				else begin
+					pixel_data_wr_0 <= 1'b0;
+					pixel_data_wr_16 <= 1'b0;
+				end
+			end
+			
+			// Loading row 16 + n
+			LOAD_1: begin
+				if(data_in_ready_fifo == 1'b1) begin
+					if(pixels_loaded == pixels_per_row_in - 1) begin
+						pixels_loaded <= 0;
+						read_state <= LOAD_WAIT; // Done loading pixels entire row
+						pixel_data_write_address_16 <= pixels_loaded;
+					end
+					else begin
+						pixels_loaded <= pixels_loaded + 1;
+						read_state <= LOAD_1; // Load another pixel in row 16 + n
+						pixel_data_write_address_16 <= pixels_loaded;
+					end
+					
+					pixel_data_wr_0 <= 1'b0;
+					pixel_data_wr_16 <= 1'b1;
+					pixel_data_in_16 <= data_in_fifo;
 				end
 				else begin
 					pixel_data_wr_0 <= 1'b0;
@@ -443,7 +466,7 @@ always @ (posedge clk or negedge reset_n) begin
 			LOAD_WAIT : begin
 				if(line_buffer_load == line_buffer) begin
 					line_buffer_load <= ~line_buffer_load;
-					read_state <= LOAD_INIT;
+					read_state <= LOAD_0;
 				end
 				pixel_data_wr_0 <= 1'b0;
 				pixel_data_wr_16 <= 1'b0;
@@ -452,20 +475,11 @@ always @ (posedge clk or negedge reset_n) begin
 	end
 end
 
-// Address shift register for memory write delay
-reg [PIXELS_WIDTH - 1:0] pixel_data_write_address_0_sr;
-reg [PIXELS_WIDTH - 1:0] pixel_data_write_address_16_sr;
-
-always @ (posedge clk) begin
-	pixel_data_write_address_0_sr <= pixel_data_write_address_0;
-	pixel_data_write_address_16_sr <= pixel_data_write_address_16;
-end
-
 // Address multiplexer
-wire [PIXELS_WIDTH - 1:0] address_bank_0 = line_buffer_load == 1'b0 ? pixel_data_write_address_0_sr : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_1 = line_buffer_load == 1'b0 ? pixel_data_write_address_16_sr : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_2 = line_buffer_load == 1'b1 ? pixel_data_write_address_0_sr : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_3 = line_buffer_load == 1'b1 ? pixel_data_write_address_16_sr : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_0 = line_buffer_load == 1'b0 ? pixel_data_write_address_0 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_1 = line_buffer_load == 1'b0 ? pixel_data_write_address_16 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_2 = line_buffer_load == 1'b1 ? pixel_data_write_address_0 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_3 = line_buffer_load == 1'b1 ? pixel_data_write_address_16 : pixel_count;
 
 // WREN multiplexer
 wire wren_0 = line_buffer_load == 1'b0 ? pixel_data_wr_0 : 1'b0;

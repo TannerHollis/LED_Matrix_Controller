@@ -6,8 +6,6 @@ module device_controller
 	(
 		// Clock IO
 		clk_sys,
-		clk_device,
-		
 		
 		// Data IO
 		data_in,
@@ -34,7 +32,6 @@ module device_controller
 	);
 
 input clk_sys;
-input clk_device;
 input [7:0] data_in;
 input data_in_ready;
 
@@ -54,27 +51,36 @@ output reg [3:0] panel_rows;
 input cs_n;
 input reset_n;
 
+// Define cs_n buffer
+reg [2:0] cs_n_buffer;
+reg cs_n_meta;
+always @ (posedge clk_sys) cs_n_meta <= cs_n;
+always @ (posedge clk_sys) cs_n_buffer <= { cs_n_buffer[1], cs_n_buffer[0], cs_n_meta };
+
 // Define registers for data_in
 reg [7:0] data_in_r [3:0];
 
 // Data shift
-always @ (posedge clk_sys or negedge reset_n) begin
+always @ (posedge clk_sys) begin
 	if(reset_n == 1'b0) begin
 		data_in_r[0] <= 0;
 		data_in_r[1] <= 0;
 		data_in_r[2] <= 0;
+		data_in_r[3] <= 0;
 	end
 	else begin
-		if(cs_n == 1'b1) begin
+		if(cs_n_buffer[1]) begin
 			data_in_r[0] <= 0;
 			data_in_r[1] <= 0;
 			data_in_r[2] <= 0;
+			data_in_r[3] <= 0;
 		end
 		else begin
 			if(data_in_ready == 1'b1) begin
 				data_in_r[0] <= data_in;
 				data_in_r[1] <= data_in_r[0];
 				data_in_r[2] <= data_in_r[1];
+				data_in_r[3] <= data_in_r[2];
 			end
 		end
 	end
@@ -110,16 +116,10 @@ reg [ADDRESS_WIDTH - 1:0] address_out_fifo [3:0];
 reg [DATA_WIDTH - 1:0] data_out_fifo [3:0];
 reg [1:0] head_out;
 
-// Define cs_n buffer
-reg [2:0] cs_n_buffer;
-reg cs_n_meta;
-always @ (posedge clk_sys) cs_n_meta <= cs_n;
-always @ (posedge clk_sys) cs_n_buffer <= { cs_n_buffer[1], cs_n_buffer[0], cs_n_meta };
-
 // Define high_low
 reg high_low;
 
-always @ (posedge clk_sys or negedge reset_n) begin
+always @ (posedge clk_sys) begin
 	if (reset_n == 1'b0) begin
 		state <= IDLE;
 		cmd <= 0;
@@ -128,7 +128,7 @@ always @ (posedge clk_sys or negedge reset_n) begin
 		data_in_count <= 0;
 		frame_buffer_select <= 1'b0;
 		color_format <= 1'b0;
-		pixels_per_row <= 0;
+		pixels_per_row <= 8'd0;
 		panel_rows <= 1;
 		high_low <= 1'b0;
 	end
@@ -146,17 +146,17 @@ always @ (posedge clk_sys or negedge reset_n) begin
 				
 			case (state)
 				IDLE : begin
-					if(data_in_count == 0 && data_in_ready == 1'b1) begin
+					if(data_in_count == 1) begin
 						state <= CMD_RXD;
-						cmd <= data_in;
+						cmd <= data_in_r[0];
 					end
 				end
 				
 				CMD_RXD: begin
 					case(cmd)
 						CMD_WRITE: begin
-							if(data_in_count == 4 && data_in_ready == 1'b1) begin
-								address_in <= {data_in_r[2], data_in_r[1], data_in_r[0], data_in};
+							if(data_in_count == 5) begin
+								address_in <= {data_in_r[3], data_in_r[2], data_in_r[1], data_in_r[0]};
 								state <= CMD_WRITE_DATA;
 								high_low <= 1'b0;
 								wr_mem <= 1'b1;
@@ -168,29 +168,29 @@ always @ (posedge clk_sys or negedge reset_n) begin
 						end
 						
 						CMD_FLIP: begin
-							if(data_in_count == 1 && data_in_ready == 1'b1) begin
-								frame_buffer_select <= data_in[0];
+							if(data_in_count == 2) begin
+								frame_buffer_select <= data_in_r[0][0];
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_COLOR_FORMAT : begin
-							if(data_in_count == 1 && data_in_ready == 1'b1) begin
-								color_format <= data_in[0];
+							if(data_in_count == 2) begin
+								color_format <= data_in_r[0][0];
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_PIXELS_PER_ROW : begin
-							if(data_in_count == 2 && data_in_ready == 1'b1) begin
-								pixels_per_row <= {data_in_r[0][2:0], data_in};
+							if(data_in_count == 3) begin
+								pixels_per_row <= {data_in_r[1][2:0], data_in_r[0]};
 								state <= CMD_DONE;
 							end
 						end
 						
 						CMD_PANEL_ROWS : begin
-							if(data_in_count == 1 && data_in_ready == 1'b1) begin
-								panel_rows <= data_in[3:0];
+							if(data_in_count == 2) begin
+								panel_rows <= data_in_r[0][3:0];
 								state <= CMD_DONE;
 							end
 						end
@@ -235,7 +235,7 @@ end
 reg [1:0] tail_out;
 
 // Memory FIFO interface
-always @ (negedge clk_sys or negedge reset_n) begin
+always @ (negedge clk_sys) begin
 	if(reset_n == 1'b0) begin
 		tail_out <= 0;
 		data_out_ready_mem <= 1'b0;

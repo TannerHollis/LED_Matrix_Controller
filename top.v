@@ -22,7 +22,7 @@ module top(
 	clk_in
 	);
 
-localparam ADDRESS_WIDTH = 14;
+localparam ADDRESS_WIDTH = 15;
 localparam DATA_WIDTH = 16;
 localparam PIXELS_PER_ROW = 512;
 localparam ROWS = 1;
@@ -185,7 +185,7 @@ generate
 				.data_in_fifo(data_out_mem),
 				.data_in_ready_fifo(data_out_ready_mem[i + 1]),
 				.data_out_ready_fifo(data_out_ready_led[i]),
-				.fifo_full(fifo_full_mem[i]),
+				.fifo_full(fifo_full_mem[i + 1]),
 				
 				.frame_buffer_select(frame_buffer_select),
 				.color_format(color_format),
@@ -227,7 +227,7 @@ generate
 				.data_in_fifo(data_out_mem),
 				.data_in_ready_fifo(data_out_ready_mem[i + 1]),
 				.data_out_ready_fifo(data_out_ready_led[i]),
-				.fifo_full(fifo_full_mem[i]),
+				.fifo_full(fifo_full_mem[i + 1]),
 				
 				.frame_buffer_select(frame_buffer_select),
 				.color_format(color_format),
