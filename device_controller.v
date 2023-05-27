@@ -128,7 +128,7 @@ always @ (posedge clk_sys) begin
 		data_in_count <= 0;
 		frame_buffer_select <= 1'b0;
 		color_format <= 1'b0;
-		pixels_per_row <= 8'd0;
+		pixels_per_row <= 8'd10;
 		panel_rows <= 1;
 		high_low <= 1'b0;
 	end
@@ -235,7 +235,7 @@ end
 reg [1:0] tail_out;
 
 // Memory FIFO interface
-always @ (negedge clk_sys) begin
+always @ (posedge clk_sys) begin
 	if(reset_n == 1'b0) begin
 		tail_out <= 0;
 		data_out_ready_mem <= 1'b0;

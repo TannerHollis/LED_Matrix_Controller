@@ -69,7 +69,6 @@ begin
 			bitcnt_rx <= 5'd0;
 			mosi_data_in <= 8'd0;
 			mosi_rx <= 1'b0;
-			mosi_data_out <= 8'd0;
 		end
 		else begin
 			if(clk_pos) begin

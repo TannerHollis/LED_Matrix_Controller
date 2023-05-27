@@ -64,7 +64,7 @@ generate
 				head_peripherals_next[i] <= 1;
 			end
 			else begin
-				if(data_in_ready[i] == 1'b1 && fifo_full[i] == 1'b0) begin
+				if(data_in_ready[i]) begin
 					address_peripherals_sr[i][head_peripherals[i]] <= address_w[i];
 					wr_peripherals_sr[i][head_peripherals[i]] <= wr[i];
 					data_in_peripherals_sr[i][head_peripherals[i]] <= data_in_w[i];
@@ -74,9 +74,10 @@ generate
 					head_peripherals_next[i] <= head_peripherals_next[i] == (PERIPHERALS_FIFO_DEPTH - 1) ? 0 : head_peripherals_next[i] + 1;
 				end
 			end
+			
 		end
 		
-		always @ (negedge clk) begin
+		always @ (posedge clk) begin
 			if (reset_n == 1'b0) begin
 				fifo_count[i] <= 0;
 			end
@@ -89,8 +90,8 @@ generate
 				end
 			end
 		end
-
-		assign fifo_full[i] = head_peripherals_next[i] == tail_peripherals[i];
+		
+		assign fifo_full[i] = (head_peripherals[i] + 1) % PERIPHERALS_FIFO_DEPTH == tail_peripherals[i];
 	end
 endgenerate
 
@@ -140,7 +141,7 @@ reg [DATA_WIDTH - 1:0] data_in_ram;
 reg [PERIPHERALS - 1:0] data_out_ready_sr [2:0];
 
 // Latch output to RAM
-always @ (negedge clk) begin
+always @ (posedge clk) begin
 	if(reset_n == 1'b0) begin
 		address_ram <= 0;
 		wr_ram <= 1'b0;

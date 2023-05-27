@@ -142,7 +142,7 @@ always @ (posedge clk) begin
 			end
 			
 			MATRIX_PUSHING_PIXELS: begin
-				if (pixel_count == pixels_per_row_in) begin
+				if (pixel_count == pixels_per_row_in - 1) begin
 					state <= MATRIX_SET_LATCH;
 				end
 			end
@@ -175,8 +175,8 @@ wire [DATA_WIDTH - 1:0] data_out_1;
 wire [DATA_WIDTH - 1:0] data_out_2;
 wire [DATA_WIDTH - 1:0] data_out_3;
 
-always @ (negedge clk_pixel) begin
-	if(reset_n == 1'b0) begin
+always @ (negedge clk_pixel or negedge reset_n) begin
+	if(!reset_n) begin
 		r0 <= 0;
 		r1 <= 0;
 		g0 <= 0;
@@ -259,7 +259,7 @@ always @ (posedge clk) begin
 end
 
 // PWM clock logic
-always @ (posedge clk_pwm) begin
+always @ (posedge clk_pwm or negedge reset_n) begin
 	if(reset_n == 1'b0) begin
 		line_select <= 0;
 		pwm <= 0;
@@ -307,7 +307,7 @@ localparam [2:0]
 	LOAD_WAIT = 4;
 	
 // Pixel RAM read req logic
-always @ (negedge clk) begin
+always @ (posedge clk) begin
 	if(reset_n == 1'b0) begin
 		pixels_reqd <= 0;
 		req_state <= LOAD_INIT;
@@ -346,7 +346,7 @@ always @ (negedge clk) begin
 			end
 			
 			LOAD_0: begin
-				if(fifo_full == 1'b0) begin
+				if(!fifo_full) begin
 					if(pixels_reqd == pixels_per_row_in - 1) begin
 						pixels_reqd <= 0;
 						req_state <= LOAD_1; // Done loading pixels entire row
@@ -366,7 +366,7 @@ always @ (negedge clk) begin
 			end
 			
 			LOAD_1: begin
-				if(fifo_full == 1'b0) begin
+				if(!fifo_full) begin
 					if(pixels_reqd == pixels_per_row_in - 1) begin
 						pixels_reqd <= 0;
 						req_state <= LOAD_WAIT; // Done loading pixels entire row
@@ -476,16 +476,16 @@ always @ (posedge clk) begin
 end
 
 // Address multiplexer
-wire [PIXELS_WIDTH - 1:0] address_bank_0 = line_buffer_load == 1'b0 ? pixel_data_write_address_0 : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_1 = line_buffer_load == 1'b0 ? pixel_data_write_address_16 : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_2 = line_buffer_load == 1'b1 ? pixel_data_write_address_0 : pixel_count;
-wire [PIXELS_WIDTH - 1:0] address_bank_3 = line_buffer_load == 1'b1 ? pixel_data_write_address_16 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_0 = !line_buffer_load ? pixel_data_write_address_0 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_1 = !line_buffer_load ? pixel_data_write_address_16 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_2 =  line_buffer_load ? pixel_data_write_address_0 : pixel_count;
+wire [PIXELS_WIDTH - 1:0] address_bank_3 =  line_buffer_load ? pixel_data_write_address_16 : pixel_count;
 
 // WREN multiplexer
-wire wren_0 = line_buffer_load == 1'b0 ? pixel_data_wr_0 : 1'b0;
-wire wren_1 = line_buffer_load == 1'b0 ? pixel_data_wr_16 : 1'b0;
-wire wren_2 = line_buffer_load == 1'b1 ? pixel_data_wr_0 : 1'b0;
-wire wren_3 = line_buffer_load == 1'b1 ? pixel_data_wr_16 : 1'b0;
+wire wren_0 = !line_buffer_load ? pixel_data_wr_0 : 1'b0;
+wire wren_1 = !line_buffer_load ? pixel_data_wr_16 : 1'b0;
+wire wren_2 =  line_buffer_load ? pixel_data_wr_0 : 1'b0;
+wire wren_3 =  line_buffer_load ? pixel_data_wr_16 : 1'b0;
 
 assign wr_fifo = 1'b0;
 assign led_clk = clk_pixel & led_clk_en;
