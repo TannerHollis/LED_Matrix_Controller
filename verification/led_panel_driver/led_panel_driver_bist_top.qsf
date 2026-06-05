@@ -1,0 +1,33 @@
+set_global_assignment -name TOP_LEVEL_ENTITY led_panel_driver_bist_top
+set_global_assignment -name ORIGINAL_QUARTUS_VERSION 24.1STD.0
+set_global_assignment -name LAST_QUARTUS_VERSION "24.1std.0 Lite Edition"
+
+set_global_assignment -name SYSTEMVERILOG_FILE led_panel_driver_bist_top.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../led_panel_driver.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../memory_fetcher.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../buffer_controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../line_buffer_ram.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../display_driver.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../memory_arbiter.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_arbiter_adapter.sv
+set_global_assignment -name VERILOG_FILE ../../sdram_components/sdram_write_fifo.v
+set_global_assignment -name VERILOG_FILE ../../sdram_components/sdram_read_fifo.v
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_data_path.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_controller.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_control_interface.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_command.sv
+set_global_assignment -name QIP_FILE ../../sdram_components/pll_100mhz.qip
+set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
+set_global_assignment -name EDA_SIMULATION_TOOL "Questa Intel FPGA (Verilog)"
+set_global_assignment -name EDA_TIME_SCALE "1 ps" -section_id eda_simulation
+set_global_assignment -name EDA_OUTPUT_DATA_FORMAT "VERILOG HDL" -section_id eda_simulation
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_timing
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_symbol
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_signal_integrity
+set_global_assignment -name EDA_GENERATE_FUNCTIONAL_NETLIST OFF -section_id eda_board_design_boundary_scan
+
+source ../board_assignments.qsf
+
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top

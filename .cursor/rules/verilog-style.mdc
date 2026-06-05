@@ -1,0 +1,44 @@
+---
+description: lowRISC Verilog/SystemVerilog style for LED Matrix Controller RTL
+globs: "**/*.sv"
+alwaysApply: false
+---
+
+# Verilog style (lowRISC)
+
+Follow [VERILOG_STYLE.md](../../VERILOG_STYLE.md) and the [lowRISC guide](https://github.com/lowRISC/style-guides/blob/master/VerilogCodingStyle.md).
+
+## Quick checklist
+
+- `UpperCamelCase` module parameters with types (`parameter int unsigned Width = 8`)
+- `lower_snake_case` signals; ports use `_i` / `_o` / `rst_ni`
+- `logic` + `always_ff` / `always_comb`; 2-space indent
+- FSM: `typedef enum logic [...] { StIdle, ... } foo_e`; `_q` / `_d` registers; `unique case`
+- Explicit literal widths; no tabs; no trailing whitespace
+- Hand-written sources use `.sv`; wizard IP stays `.v` (`*_fifo.v`, `pll_100mhz.v`)
+- Keep project file headers; do not edit Quartus wizard IP
+
+## Example port list
+
+```systemverilog
+module foo #(
+  parameter int unsigned Width = 8
+) (
+  input  logic             clk_i,
+  input  logic             rst_ni,
+  input  logic [Width-1:0] data_i,
+  output logic [Width-1:0] data_o
+);
+```
+
+## Instantiating migrated children
+
+Use matching port names; map legacy parent ports explicitly:
+
+```systemverilog
+memory_fetcher #(.TotalRowWidth(TOTAL_ROW_WIDTH)) u_fetch (
+  .clk_i    (clk),
+  .rst_ni   (reset_n),
+  .mem_req_o(mem_req)
+);
+```

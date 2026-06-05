@@ -1,0 +1,105 @@
+# ModelSim / Questa — temp and work libraries
+[_@]*
+work/
+*.mpf.cr.mti
+
+# ModelSim / Questa — compilation artifacts
+*.mti
+*.dat
+*.dbs
+*.psm
+*.bak
+*.cmp
+*.bsf
+
+# ModelSim / Questa — simulation output
+wlf*
+*.wlf
+*.vstf
+*.ucdb
+cov*/
+transcript*
+sc_dpiheader.h
+vsim.dbg
+
+# Quartus — project database and compile output directories
+db/
+incremental_db/
+output_files/
+greybox_tmp/
+.qsys_edit/
+simulation/
+timing/
+testbench/
+*_sim/
+
+# Quartus — workspace and GUI state (per-project-name; safe to delete locally)
+*.qws
+
+# Quartus — programming and fitter reports
+*.sof
+*.pof
+*.jic
+*.rbf
+*.pin
+*.rpt
+*.smsg
+*.summary
+*.done
+*.eqn
+*.asm.rpt
+*.fit.rpt
+*.map.rpt
+*.sta.rpt
+*.flow.rpt
+*.pow.rpt
+
+# Quartus — database and internal compile files
+*.qdb
+*.qdr
+*.qpgm
+*.qtl
+*.qns
+*.hdb
+*.cdb
+*.tdf
+*.ddb
+*.flock
+*.db_info
+*.sci
+*.log
+*.jdi
+*.cdf
+*.cif
+*.hdp
+*.hsd
+*.vo
+*.bo
+*.fo
+*.nwft
+*.tmp
+
+# Quartus — IP, Platform Designer, and archive output
+*_generation_script*
+*_inst.vhd
+*.qar
+*.qarlog
+*.sopc_builder
+*.sopcinfo
+*.qgs
+*.qsg
+*.ptf.*
+PLLJ_PLLSPE_INFO.txt
+*assignment_defaults.qdf
+
+# Quartus — SignalTap generated files
+*_auto_stripped.stp
+**/db/*_stp*
+
+# Quartus — misc generated (narrow; do not blanket-ignore source .tcl/.txt/.html)
+*.sopc_*
+*~
+*example*
+
+# Timing constraints are tracked intentionally
+# *.sdc

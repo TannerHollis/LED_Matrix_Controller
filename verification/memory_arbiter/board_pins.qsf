@@ -1,0 +1,17 @@
+# DE2-115 pins for arbiter-only BIST (no SDRAM)
+# Sourced by verification/memory_arbiter/*.qsf
+
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+set_global_assignment -name SDC_FILE ../bist_timing.sdc
+
+set_global_assignment -name FAMILY "Cyclone IV GX"
+set_global_assignment -name DEVICE EP4CGX150DF27I7
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+
+set_location_assignment PIN_AD24 -to btn_reset
+set_location_assignment PIN_AD23 -to btn_start
+set_location_assignment PIN_B14 -to clk_50mhz
+set_location_assignment PIN_A24 -to led_status

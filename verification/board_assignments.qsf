@@ -1,0 +1,57 @@
+# Shared board pin and device assignments (DE2-115 / EP4CGX150)
+# Sourced by each verification project .qsf
+
+set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
+
+set_global_assignment -name SDC_FILE ../bist_timing.sdc
+
+set_global_assignment -name FAMILY "Cyclone IV GX"
+set_global_assignment -name DEVICE EP4CGX150DF27I7
+set_global_assignment -name MIN_CORE_JUNCTION_TEMP "-40"
+set_global_assignment -name MAX_CORE_JUNCTION_TEMP 100
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+
+set_location_assignment PIN_AD24 -to btn_reset
+set_location_assignment PIN_AD23 -to btn_start
+set_location_assignment PIN_B14 -to clk_50mhz
+set_location_assignment PIN_A24 -to led_status
+set_location_assignment PIN_G25 -to sdram_we_n
+set_location_assignment PIN_H24 -to sdram_dqm[1]
+set_location_assignment PIN_H25 -to sdram_ras_n
+set_location_assignment PIN_F26 -to sdram_dqm[0]
+set_location_assignment PIN_B25 -to sdram_dq[0]
+set_location_assignment PIN_B26 -to sdram_dq[1]
+set_location_assignment PIN_C25 -to sdram_dq[2]
+set_location_assignment PIN_C26 -to sdram_dq[3]
+set_location_assignment PIN_D25 -to sdram_dq[4]
+set_location_assignment PIN_D26 -to sdram_dq[5]
+set_location_assignment PIN_E25 -to sdram_dq[6]
+set_location_assignment PIN_E26 -to sdram_dq[7]
+set_location_assignment PIN_H23 -to sdram_dq[8]
+set_location_assignment PIN_G24 -to sdram_dq[9]
+set_location_assignment PIN_G22 -to sdram_dq[10]
+set_location_assignment PIN_F24 -to sdram_dq[11]
+set_location_assignment PIN_F23 -to sdram_dq[12]
+set_location_assignment PIN_E24 -to sdram_dq[13]
+set_location_assignment PIN_D24 -to sdram_dq[14]
+set_location_assignment PIN_C24 -to sdram_dq[15]
+set_location_assignment PIN_H26 -to sdram_cs_n
+set_location_assignment PIN_E22 -to sdram_clk
+set_location_assignment PIN_K24 -to sdram_cke
+set_location_assignment PIN_G26 -to sdram_cas_n
+set_location_assignment PIN_J25 -to sdram_ba[0]
+set_location_assignment PIN_J26 -to sdram_ba[1]
+set_location_assignment PIN_L25 -to sdram_addr[0]
+set_location_assignment PIN_L26 -to sdram_addr[1]
+set_location_assignment PIN_M25 -to sdram_addr[2]
+set_location_assignment PIN_M26 -to sdram_addr[3]
+set_location_assignment PIN_N22 -to sdram_addr[4]
+set_location_assignment PIN_N23 -to sdram_addr[5]
+set_location_assignment PIN_N24 -to sdram_addr[6]
+set_location_assignment PIN_M22 -to sdram_addr[7]
+set_location_assignment PIN_M24 -to sdram_addr[8]
+set_location_assignment PIN_L23 -to sdram_addr[9]
+set_location_assignment PIN_K26 -to sdram_addr[10]
+set_location_assignment PIN_L24 -to sdram_addr[11]
+set_location_assignment PIN_K23 -to sdram_addr[12]
