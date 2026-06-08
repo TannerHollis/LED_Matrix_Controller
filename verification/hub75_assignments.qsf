@@ -1,0 +1,114 @@
+# Shared HUB75 pin assignments for HDR_32X2 (U4) on the LED matrix carrier.
+# Sourced by verification/top_level and verification/led_panel_controller projects.
+# Schematic net IO_{bank}{num} maps to Cyclone IV package location PIN_{bank}{num}.
+# Power: header pins 1-2 (rails), 3-4 (3.3V), 61-64 (VIN). Pins 8/23/38 are HUB75 GND
+# positions on the IDC cable — no FPGA connection.
+#
+# Standard HUB75 IDC order per row (15 driven signals):
+#   R1, G1, B1, (GND), R2, G2, B2, E, A, B, C, D, CLK, LAT, OE
+#
+# This header fits three parallel panel rows (hub75_*[0:2]). Rows [3:11] are not routed
+# on this connector; override NumPanelRows=3 in top_level for a header-only build.
+#
+# hub75_addr is packed as 5 bits per row: [4]=E, [3]=D, [2]=C, [1]=B, [0]=A.
+#
+# +--------+----------+------------------+--------+------------------+
+# | Hdr Pin| Schematic| HUB75 signal     | DUT    | Quartus location |
+# +--------+----------+------------------+--------+------------------+
+# Row 0 — header pins 5-19
+# |      5 | IO_C21   | R1               | r1[0]  | PIN_C21          |
+# |      6 | IO_B22   | G1               | g1[0]  | PIN_B22          |
+# |      7 | IO_B23   | B1               | b1[0]  | PIN_B23          |
+# |      8 | IO_A23   | GND              | —      | (no assignment)  |
+# |      9 | IO_B21   | R2               | r2[0]  | PIN_B21          |
+# |     10 | IO_A22   | G2               | g2[0]  | PIN_A22          |
+# |     11 | IO_C19   | B2               | b2[0]  | PIN_C19          |
+# |     12 | IO_B19   | E                | addr[4]| PIN_B19          |
+# |     13 | IO_A21   | A                | addr[0]| PIN_A21          |
+# |     14 | IO_A20   | B                | addr[1]| PIN_A20          |
+# |     15 | IO_A19   | C                | addr[2]| PIN_A19          |
+# |     16 | IO_A18   | D                | addr[3]| PIN_A18          |
+# |     17 | IO_C17   | CLK              | clk[0] | PIN_C17          |
+# |     18 | IO_B18   | LAT              | lat[0] | PIN_B18          |
+# |     19 | IO_C16   | OE               | oe[0]  | PIN_C16          |
+# Row 1 — header pins 20-34
+# |     20 | IO_B17   | R1               | r1[1]  | PIN_B17          |
+# |     21 | IO_A17   | G1               | g1[1]  | PIN_A17          |
+# |     22 | IO_A16   | B1               | b1[1]  | PIN_A16          |
+# |     23 | IO_B15   | GND              | —      | (no assignment)  |
+# |     24 | IO_A15   | R2               | r2[1]  | PIN_A15          |
+# |     25 | IO_C15   | G2               | g2[1]  | PIN_C15          |
+# |     26 | IO_C14   | B2               | b2[1]  | PIN_C14          |
+# |     27 | IO_C13   | E                | addr[9] | PIN_C13         |
+# |     28 | IO_B13   | A                | addr[5] | PIN_B13         |
+# |     29 | IO_C12   | B                | addr[6] | PIN_C12         |
+# |     30 | IO_C11   | C                | addr[7] | PIN_C11         |
+# |     31 | IO_A13   | D                | addr[8] | PIN_A13         |
+# |     32 | IO_A12   | CLK              | clk[1] | PIN_A12          |
+# |     33 | IO_B11   | LAT              | lat[1] | PIN_B11          |
+# |     34 | IO_A11   | OE               | oe[1]  | PIN_A11          |
+# Row 2 — header pins 35-49
+# |     35 | IO_B10   | R1               | r1[2]  | PIN_B10          |
+# |     36 | IO_A10   | G1               | g1[2]  | PIN_A10          |
+# |     37 | IO_C10   | B1               | b1[2]  | PIN_C10          |
+# |     38 | IO_B9    | GND              | —      | (no assignment)  |
+# |     39 | IO_A9    | R2               | r2[2]  | PIN_A9           |
+# |     40 | IO_A8    | G2               | g2[2]  | PIN_A8           |
+# |     41 | IO_A7    | B2               | b2[2]  | PIN_A7           |
+# |     42 | IO_A6    | E                | addr[14]| PIN_A6          |
+# |     43 | IO_B7    | A                | addr[10]| PIN_B7          |
+# |     44 | IO_B6    | B                | addr[11]| PIN_B6          |
+# |     45 | IO_B5    | C                | addr[12]| PIN_B5          |
+# |     46 | IO_A5    | D                | addr[13]| PIN_A5          |
+# |     47 | IO_B4    | CLK              | clk[2] | PIN_B4           |
+# |     48 | IO_A4    | LAT              | lat[2] | PIN_A4           |
+# |     49 | IO_C5    | OE               | oe[2]  | PIN_C5           |
+# +--------+----------+------------------+--------+------------------+
+
+# --- Panel row 0 ---
+set_location_assignment PIN_C21 -to hub75_r1[0]
+set_location_assignment PIN_B22 -to hub75_g1[0]
+set_location_assignment PIN_B23 -to hub75_b1[0]
+set_location_assignment PIN_B21 -to hub75_r2[0]
+set_location_assignment PIN_A22 -to hub75_g2[0]
+set_location_assignment PIN_C19 -to hub75_b2[0]
+set_location_assignment PIN_B19 -to hub75_addr[4]
+set_location_assignment PIN_A21 -to hub75_addr[0]
+set_location_assignment PIN_A20 -to hub75_addr[1]
+set_location_assignment PIN_A19 -to hub75_addr[2]
+set_location_assignment PIN_A18 -to hub75_addr[3]
+set_location_assignment PIN_C17 -to hub75_clk[0]
+set_location_assignment PIN_B18 -to hub75_lat[0]
+set_location_assignment PIN_C16 -to hub75_oe[0]
+
+# --- Panel row 1 ---
+set_location_assignment PIN_B17 -to hub75_r1[1]
+set_location_assignment PIN_A17 -to hub75_g1[1]
+set_location_assignment PIN_A16 -to hub75_b1[1]
+set_location_assignment PIN_A15 -to hub75_r2[1]
+set_location_assignment PIN_C15 -to hub75_g2[1]
+set_location_assignment PIN_C14 -to hub75_b2[1]
+set_location_assignment PIN_C13 -to hub75_addr[9]
+set_location_assignment PIN_B13 -to hub75_addr[5]
+set_location_assignment PIN_C12 -to hub75_addr[6]
+set_location_assignment PIN_C11 -to hub75_addr[7]
+set_location_assignment PIN_A13 -to hub75_addr[8]
+set_location_assignment PIN_A12 -to hub75_clk[1]
+set_location_assignment PIN_B11 -to hub75_lat[1]
+set_location_assignment PIN_A11 -to hub75_oe[1]
+
+# --- Panel row 2 ---
+set_location_assignment PIN_B10 -to hub75_r1[2]
+set_location_assignment PIN_A10 -to hub75_g1[2]
+set_location_assignment PIN_C10 -to hub75_b1[2]
+set_location_assignment PIN_A9  -to hub75_r2[2]
+set_location_assignment PIN_A8  -to hub75_g2[2]
+set_location_assignment PIN_A7  -to hub75_b2[2]
+set_location_assignment PIN_A6  -to hub75_addr[14]
+set_location_assignment PIN_B7  -to hub75_addr[10]
+set_location_assignment PIN_B6  -to hub75_addr[11]
+set_location_assignment PIN_B5  -to hub75_addr[12]
+set_location_assignment PIN_A5  -to hub75_addr[13]
+set_location_assignment PIN_B4  -to hub75_clk[2]
+set_location_assignment PIN_A4  -to hub75_lat[2]
+set_location_assignment PIN_C5  -to hub75_oe[2]

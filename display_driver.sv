@@ -16,7 +16,7 @@
 //   (none)
 // ============================================================================
 // Revision History:
-//   Current - HUB75 shift/BCM timing with row_pair_done pacing output.
+//   Current - One-cycle line-buffer read wait before CLK high (M9K latency).
 // ============================================================================
 
 module display_driver #(
@@ -57,7 +57,7 @@ module display_driver #(
   localparam int unsigned RowPairCount   = PanelHeight / 2;
   localparam int unsigned AddrBits       = $clog2(RowPairCount);
   localparam int unsigned CyclesPerFrame = SysClkHz / RefreshRateHz;
-  localparam int unsigned CyclesPerRowScan = (TotalRowWidth * 2) + 3;
+  localparam int unsigned CyclesPerRowScan = (TotalRowWidth * 3) + 3;
   localparam int unsigned TotalOverheadCycles =
       CyclesPerRowScan * RowPairCount * ColorDepth;
   localparam int unsigned TotalBcmWeight = (1 << ColorDepth) - 1;
@@ -87,6 +87,7 @@ module display_driver #(
   typedef enum logic [2:0] {
     StIdle,
     StShift,
+    StRdWait,
     StClkHi,
     StLatch,
     StEnable
@@ -128,7 +129,9 @@ module display_driver #(
       display_state_d = StIdle;
     end else begin
       unique case (display_state_q)
-        StShift: display_state_d = StClkHi;
+        StShift: display_state_d = StRdWait;
+
+        StRdWait: display_state_d = StClkHi;
 
         StClkHi: begin
           if (shift_counter_q == {ShiftAddrWidth{1'b0}}) begin
@@ -203,6 +206,10 @@ module display_driver #(
           StShift: begin
             panel_clk_o      <= 1'b0;
             buffer_rd_addr_o <= shift_counter_q;
+          end
+
+          StRdWait: begin
+            panel_clk_o <= 1'b0;
           end
 
           StClkHi: begin

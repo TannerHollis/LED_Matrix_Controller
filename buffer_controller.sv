@@ -168,6 +168,10 @@ module buffer_controller #(
         end
 
         StSteady: begin
+          if (display_complete_i) begin
+            start_display_o <= 1'b1;
+          end
+
           if (row_pair_done_i) begin
             fetch_buffer_set_sel_q <= display_buffer_sel_q;
             display_buffer_sel_q   <= ~display_buffer_sel_q;

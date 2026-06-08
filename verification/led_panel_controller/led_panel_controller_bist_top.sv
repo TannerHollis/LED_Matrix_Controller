@@ -3,53 +3,46 @@
 // Project     : LED Matrix Controller
 // Author      : Tanner J. Hollis
 // Description :
-//   SPI-only, SDRAM-backed hardware BIST for the top-level led_panel_controller.
-//   The BIST uses an internal synthetic SPI master to write a deterministic
-//   framebuffer pattern through spi_slave and command_processor, sends
-//   CMD_FLIP_BUFFER, then checks internal HUB75 outputs from one selected panel
-//   row. Ethernet is intentionally compiled out for this verification stage.
+//   SDRAM-backed visual demo for the top-level led_panel_controller. A synthetic
+//   SPI master writes rotating test patterns through spi_slave and
+//   command_processor, flips the framebuffer, then holds each image for a few
+//   seconds before advancing. No HUB75 self-check; use for bench visual verify.
 //
 // Parameters  :
 //   SysClkHz             - Input clock frequency in Hz (Default: 50 MHz)
 //   RefreshRateHz        - Display refresh target used by DUT timing
 //   NumPanelRows         - Parallel HUB75 rows instantiated in DUT
-//   NumPanelsPerRow     - Daisy-chained panels per row
-//   PanelWidth            - Width of one physical panel in pixels
-//   PanelHeight           - Height of one physical panel in pixels
-//   ColorDepth            - Color bit depth per channel
-//   SpiHalfPeriodCycles - Synthetic SPI half-period in clk_50mhz cycles
+//   NumPanelsPerRow      - Daisy-chained panels per row
+//   PanelWidth           - Width of one physical panel in pixels
+//   PanelHeight          - Height of one physical panel in pixels
+//   ColorDepth           - Color bit depth per channel
+//   SpiHalfPeriodCycles  - Synthetic SPI half-period in clk_50mhz cycles
 //   CommandSettleCycles  - Inter-command wait for SDRAM write completion
-//   CheckPanelRow        - Panel row index checked by the HUB75 monitor
+//   PatternHoldSec       - Seconds to show each pattern before advancing
+//   PatternCount         - Number of patterns in bist_frame_patterns
 //
 // Dependencies:
 //   - led_panel_controller.sv
-//   - spi_slave.sv
-//   - command_processor.sv
-//   - led_panel_driver.sv
-//   - memory_fetcher.sv
-//   - buffer_controller.sv
-//   - line_buffer_ram.sv
-//   - display_driver.sv
-//   - memory_arbiter.sv
-//   - sdram_arbiter_adapter.sv
-//   - sdram_controller.sv
+//   - bist_frame_patterns.sv
 // ============================================================================
 // Revision History:
-//   Current - SPI-commanded full top through SDRAM and HUB75 checker.
+//   Current - Rotating visual patterns only (no checker).
 // ============================================================================
 
 module led_panel_controller_bist_top #(
   parameter int unsigned SysClkHz            = 50_000_000,
-  parameter int unsigned RefreshRateHz       = 20,
+  parameter int unsigned RefreshRateHz       = 120,
   parameter int unsigned NumPanelRows        = 1,
-  parameter int unsigned NumPanelsPerRow     = 1,
+  parameter int unsigned NumPanelsPerRow     = 2,
   parameter int unsigned PanelWidth          = 64,
   parameter int unsigned PanelHeight         = 32,
   parameter int unsigned ColorDepth          = 4,
   parameter int unsigned CmdWidth            = 8,
   parameter int unsigned SpiHalfPeriodCycles = 4,
   parameter int unsigned CommandSettleCycles = 256,
-  parameter int unsigned CheckPanelRow       = 0,
+  parameter int unsigned PatternHoldSec      = 3,
+  parameter int unsigned PatternCount        = 6,
+  parameter int unsigned Hub75HeaderRows     = 3,
   parameter int unsigned SdramRowWidth       = 13,
   parameter int unsigned SdramColWidth       = 9,
   parameter int unsigned SdramBankWidth      = 2
@@ -68,16 +61,16 @@ module led_panel_controller_bist_top #(
     output wire [1:0]  sdram_dqm,
     output wire        sdram_ras_n,
     output wire        sdram_we_n,
-    output wire [NumPanelRows-1:0]   hub75_r1,
-    output wire [NumPanelRows-1:0]   hub75_g1,
-    output wire [NumPanelRows-1:0]   hub75_b1,
-    output wire [NumPanelRows-1:0]   hub75_r2,
-    output wire [NumPanelRows-1:0]   hub75_g2,
-    output wire [NumPanelRows-1:0]   hub75_b2,
-    output wire [5*NumPanelRows-1:0] hub75_addr,
-    output wire [NumPanelRows-1:0]   hub75_clk,
-    output wire [NumPanelRows-1:0]   hub75_lat,
-    output wire [NumPanelRows-1:0]   hub75_oe
+    output wire [Hub75HeaderRows-1:0]   hub75_r1,
+    output wire [Hub75HeaderRows-1:0]   hub75_g1,
+    output wire [Hub75HeaderRows-1:0]   hub75_b1,
+    output wire [Hub75HeaderRows-1:0]   hub75_r2,
+    output wire [Hub75HeaderRows-1:0]   hub75_g2,
+    output wire [Hub75HeaderRows-1:0]   hub75_b2,
+    output wire [5*Hub75HeaderRows-1:0] hub75_addr,
+    output wire [Hub75HeaderRows-1:0]   hub75_clk,
+    output wire [Hub75HeaderRows-1:0]   hub75_lat,
+    output wire [Hub75HeaderRows-1:0]   hub75_oe
 );
 
     localparam TOTAL_WIDTH = PanelWidth * NumPanelsPerRow;
@@ -85,8 +78,6 @@ module led_panel_controller_bist_top #(
     localparam DATA_WIDTH = ColorDepth * 3;
     localparam FB_ADDR_WIDTH = (TOTAL_WIDTH * TOTAL_HEIGHT <= 1) ?
                                1 : $clog2(TOTAL_WIDTH * TOTAL_HEIGHT);
-    localparam ROW_PAIR_COUNT = PanelHeight / 2;
-    localparam ROW_ADDR_WIDTH = (ROW_PAIR_COUNT <= 1) ? 1 : $clog2(ROW_PAIR_COUNT);
     localparam COUNT_WIDTH = 32;
     localparam BYTE_IDX_WIDTH = 4;
     localparam BIT_IDX_WIDTH = 4;
@@ -108,15 +99,12 @@ module led_panel_controller_bist_top #(
         (CmdWidth <= 15) ? 4'd14 : 4'd15;
     localparam [COUNT_WIDTH-1:0] FRAME_WORDS = TOTAL_WIDTH * TOTAL_HEIGHT;
     localparam [COUNT_WIDTH-1:0] LAST_WRITE_INDEX = FRAME_WORDS - 1;
-    localparam [COUNT_WIDTH-1:0] TOTAL_GROUPS = ROW_PAIR_COUNT * ColorDepth;
-    localparam [COUNT_WIDTH-1:0] TOTAL_CLK_PULSES = TOTAL_GROUPS * TOTAL_WIDTH;
-    localparam [COUNT_WIDTH-1:0] LAST_GROUP_PIXEL = TOTAL_WIDTH - 1;
-    localparam integer ROW_WIDTH_INDEX = TOTAL_WIDTH;
-    localparam integer CHECK_ROW_OFFSET_INDEX = CheckPanelRow * PanelHeight;
-    localparam integer LAST_ROW_PAIR_INDEX = ROW_PAIR_COUNT - 1;
-    localparam integer LAST_BCM_INDEX = ColorDepth - 1;
-    localparam [COUNT_WIDTH-1:0] DISPLAY_WAIT_TIMEOUT = 32'd200_000_000;
     localparam SDRAM_HOST_INIT_CYCLES = 24'd50_000;
+    localparam [COUNT_WIDTH-1:0] PATTERN_HOLD_CYCLES =
+        SysClkHz * PatternHoldSec;
+    localparam int unsigned PatSelWidth =
+        (PatternCount <= 1) ? 1 : $clog2(PatternCount);
+    localparam [PatSelWidth-1:0] LastPatternIndex = PatternCount - 1;
 
     localparam [BYTE_IDX_WIDTH-1:0] ADDR_BYTES =
         (FB_ADDR_WIDTH <= 8)  ? 4'd1 :
@@ -135,24 +123,28 @@ module led_panel_controller_bist_top #(
     localparam PH_WRITE = 1'b0;
     localparam PH_FLIP  = 1'b1;
 
-    localparam ST_IDLE        = 5'd0;
-    localparam ST_LOAD_WRITE  = 5'd1;
-    localparam ST_LOAD_FLIP   = 5'd2;
-    localparam ST_BEGIN_BYTE  = 5'd3;
-    localparam ST_SETUP_BIT   = 5'd4;
-    localparam ST_SCLK_HIGH   = 5'd5;
-    localparam ST_SCLK_LOW    = 5'd6;
-    localparam ST_FINISH_BYTE = 5'd7;
-    localparam ST_BYTE_GAP    = 5'd8;
-    localparam ST_COMMAND_GAP = 5'd9;
-    localparam ST_WAIT_DISPLAY = 5'd10;
+    localparam ST_IDLE         = 4'd0;
+    localparam ST_LOAD_WRITE   = 4'd1;
+    localparam ST_LOAD_FLIP    = 4'd2;
+    localparam ST_BEGIN_BYTE   = 4'd3;
+    localparam ST_SETUP_BIT    = 4'd4;
+    localparam ST_SCLK_HIGH    = 4'd5;
+    localparam ST_SCLK_LOW     = 4'd6;
+    localparam ST_FINISH_BYTE  = 4'd7;
+    localparam ST_BYTE_GAP     = 4'd8;
+    localparam ST_COMMAND_GAP  = 4'd9;
+    localparam ST_PATTERN_HOLD = 4'd10;
+
+    wire demo_running = (state != ST_IDLE);
+    wire pattern_hold = (state == ST_PATTERN_HOLD);
+    wire bist_done = pattern_hold;
 
     logic clk_i;
     logic rst_ni;
     assign clk_i  = clk_50mhz;
     assign rst_ni = btn_reset;
 
-    reg [4:0] state;
+    reg [3:0] state;
     reg [23:0] sdram_init_countdown;
     reg command_phase;
     reg [COUNT_WIDTH-1:0] write_index;
@@ -160,10 +152,9 @@ module led_panel_controller_bist_top #(
     reg [BIT_IDX_WIDTH-1:0] bit_index;
     reg [COUNT_WIDTH-1:0] half_counter;
     reg [COUNT_WIDTH-1:0] gap_counter;
-    reg [COUNT_WIDTH-1:0] wait_counter;
     reg [24:0] blink_counter;
-    reg bist_done;
-    reg fail_latched;
+    reg [PatSelWidth-1:0] pattern_id;
+    reg [COUNT_WIDTH-1:0] hold_counter;
 
     reg [2:0] start_sync;
     reg start_armed;
@@ -185,101 +176,48 @@ module led_panel_controller_bist_top #(
     wire [NumPanelRows-1:0] panel_lat;
     wire [NumPanelRows-1:0] panel_oe;
 
-    assign hub75_r1   = panel_r1;
-    assign hub75_g1   = panel_g1;
-    assign hub75_b1   = panel_b1;
-    assign hub75_r2   = panel_r2;
-    assign hub75_g2   = panel_g2;
-    assign hub75_b2   = panel_b2;
-    assign hub75_addr = panel_addr;
-    assign hub75_clk  = panel_clk;
-    assign hub75_lat  = panel_lat;
-    assign hub75_oe   = panel_oe;
+    localparam int unsigned Hub75PadMsb = Hub75HeaderRows - NumPanelRows;
 
-    wire check_panel_r1 = panel_r1[CheckPanelRow];
-    wire check_panel_g1 = panel_g1[CheckPanelRow];
-    wire check_panel_b1 = panel_b1[CheckPanelRow];
-    wire check_panel_r2 = panel_r2[CheckPanelRow];
-    wire check_panel_g2 = panel_g2[CheckPanelRow];
-    wire check_panel_b2 = panel_b2[CheckPanelRow];
-    wire [ROW_ADDR_WIDTH-1:0] check_panel_addr =
-        panel_addr[CheckPanelRow*5 +: ROW_ADDR_WIDTH];
-    wire check_panel_clk = panel_clk[CheckPanelRow];
-    wire check_panel_lat = panel_lat[CheckPanelRow];
-    wire check_panel_oe = panel_oe[CheckPanelRow];
+    assign hub75_r1   = {{Hub75PadMsb{1'b0}}, panel_r1};
+    assign hub75_g1   = {{Hub75PadMsb{1'b0}}, panel_g1};
+    assign hub75_b1   = {{Hub75PadMsb{1'b0}}, panel_b1};
+    assign hub75_r2   = {{Hub75PadMsb{1'b0}}, panel_r2};
+    assign hub75_g2   = {{Hub75PadMsb{1'b0}}, panel_g2};
+    assign hub75_b2   = {{Hub75PadMsb{1'b0}}, panel_b2};
+    assign hub75_addr = {{(Hub75PadMsb * 5){1'b0}}, panel_addr};
+    assign hub75_clk  = {{Hub75PadMsb{1'b0}}, panel_clk};
+    assign hub75_lat  = {{Hub75PadMsb{1'b0}}, panel_lat};
+    assign hub75_oe   = {{Hub75PadMsb{1'b0}}, panel_oe};
 
-    reg prev_panel_clk;
-    reg prev_panel_lat;
-    reg [COUNT_WIDTH-1:0] group_pixel_index;
-    reg [COUNT_WIDTH-1:0] clk_pulse_count;
-    reg [COUNT_WIDTH-1:0] latch_count;
-    reg [ROW_ADDR_WIDTH-1:0] expected_panel_addr;
-    reg [ColorDepth-1:0] expected_bcm;
-    reg oe_seen;
+    wire [FB_ADDR_WIDTH-1:0] write_pattern_addr = write_index[FB_ADDR_WIDTH-1:0];
+    wire [DATA_WIDTH-1:0] write_pattern_pixel;
 
-    wire panel_clk_rise = check_panel_clk && !prev_panel_clk;
-    wire panel_lat_rise = check_panel_lat && !prev_panel_lat;
-    wire [DATA_WIDTH-1:0] current_expected_top_data =
-        expected_top_data(group_pixel_index, expected_panel_addr);
-    wire [DATA_WIDTH-1:0] current_expected_bottom_data =
-        expected_bottom_data(group_pixel_index, expected_panel_addr);
-    wire [CmdWidth-1:0] current_spi_byte = command_byte(command_phase, write_index, byte_index);
+    bist_frame_patterns #(
+        .ColorDepth(ColorDepth),
+        .TotalWidth(TOTAL_WIDTH),
+        .TotalHeight(TOTAL_HEIGHT),
+        .PatternCount(PatternCount)
+    ) u_write_pattern (
+        .pattern_sel_i(pattern_id),
+        .addr_i(write_pattern_addr),
+        .pixel_o(write_pattern_pixel)
+    );
 
-    function [DATA_WIDTH-1:0] mem_pattern;
-        input [FB_ADDR_WIDTH-1:0] addr_in;
-        reg [15:0] addr_word;
-        reg [15:0] full_pat;
-        begin
-            addr_word = {{(16-FB_ADDR_WIDTH){1'b0}}, addr_in};
-            full_pat = addr_word ^ 16'hA5C3;
-            mem_pattern = full_pat[DATA_WIDTH-1:0];
-        end
-    endfunction
-
-    function [FB_ADDR_WIDTH-1:0] display_col_for_index;
-        input [COUNT_WIDTH-1:0] pixel_index;
-        begin
-            if (pixel_index == {COUNT_WIDTH{1'b0}})
-                display_col_for_index = {FB_ADDR_WIDTH{1'b0}};
-            else
-                display_col_for_index =
-                    ROW_WIDTH_INDEX[FB_ADDR_WIDTH-1:0] - pixel_index[FB_ADDR_WIDTH-1:0];
-        end
-    endfunction
-
-    function [DATA_WIDTH-1:0] expected_top_data;
-        input [COUNT_WIDTH-1:0] pixel_index;
-        input [ROW_ADDR_WIDTH-1:0] row_pair;
-        reg [FB_ADDR_WIDTH-1:0] addr;
-        begin
-            addr = (CHECK_ROW_OFFSET_INDEX + row_pair) * TOTAL_WIDTH +
-                   display_col_for_index(pixel_index);
-            expected_top_data = mem_pattern(addr);
-        end
-    endfunction
-
-    function [DATA_WIDTH-1:0] expected_bottom_data;
-        input [COUNT_WIDTH-1:0] pixel_index;
-        input [ROW_ADDR_WIDTH-1:0] row_pair;
-        reg [FB_ADDR_WIDTH-1:0] addr;
-        begin
-            addr = (CHECK_ROW_OFFSET_INDEX + row_pair + ROW_PAIR_COUNT) * TOTAL_WIDTH +
-                   display_col_for_index(pixel_index);
-            expected_bottom_data = mem_pattern(addr);
-        end
-    endfunction
+    wire [CmdWidth-1:0] current_spi_byte =
+        command_byte(command_phase, write_index, byte_index, write_pattern_pixel);
 
     function [CmdWidth-1:0] command_byte;
         input command_phase_in;
         input [COUNT_WIDTH-1:0] addr_index;
         input [BYTE_IDX_WIDTH-1:0] byte_idx;
+        input [DATA_WIDTH-1:0] data_value_in;
         reg [FB_ADDR_WIDTH-1:0] addr_value;
         reg [DATA_WIDTH-1:0] data_value;
         reg [FB_ADDR_WIDTH-1:0] shifted_addr;
         reg [DATA_WIDTH-1:0] shifted_data;
         begin
             addr_value = addr_index[FB_ADDR_WIDTH-1:0];
-            data_value = mem_pattern(addr_value);
+            data_value = data_value_in;
             shifted_addr = {FB_ADDR_WIDTH{1'b0}};
             shifted_data = {DATA_WIDTH{1'b0}};
 
@@ -328,59 +266,40 @@ module led_panel_controller_bist_top #(
 
     always_ff @(posedge clk_i or negedge rst_ni) begin
         if (!rst_ni) begin
-            state               <= ST_IDLE;
-            command_phase       <= PH_WRITE;
-            write_index         <= {COUNT_WIDTH{1'b0}};
-            byte_index          <= {BYTE_IDX_WIDTH{1'b0}};
-            bit_index           <= {BIT_IDX_WIDTH{1'b0}};
-            half_counter        <= {COUNT_WIDTH{1'b0}};
-            gap_counter         <= {COUNT_WIDTH{1'b0}};
-            wait_counter        <= {COUNT_WIDTH{1'b0}};
-            blink_counter       <= 25'd0;
-            bist_done           <= 1'b0;
-            fail_latched        <= 1'b0;
-            led_status          <= 1'b1;
-            spi_sclk            <= 1'b0;
-            spi_cs_n            <= 1'b1;
-            spi_mosi            <= 1'b0;
-            prev_panel_clk      <= 1'b0;
-            prev_panel_lat      <= 1'b0;
-            group_pixel_index   <= {COUNT_WIDTH{1'b0}};
-            clk_pulse_count     <= {COUNT_WIDTH{1'b0}};
-            latch_count         <= {COUNT_WIDTH{1'b0}};
-            expected_panel_addr <= {ROW_ADDR_WIDTH{1'b0}};
-            expected_bcm        <= {ColorDepth{1'b0}};
-            oe_seen             <= 1'b0;
+            state                <= ST_IDLE;
+            command_phase        <= PH_WRITE;
+            write_index          <= {COUNT_WIDTH{1'b0}};
+            byte_index           <= {BYTE_IDX_WIDTH{1'b0}};
+            bit_index            <= {BIT_IDX_WIDTH{1'b0}};
+            half_counter         <= {COUNT_WIDTH{1'b0}};
+            gap_counter          <= {COUNT_WIDTH{1'b0}};
+            blink_counter        <= 25'd0;
+            pattern_id           <= {PatSelWidth{1'b0}};
+            hold_counter         <= {COUNT_WIDTH{1'b0}};
+            led_status           <= 1'b1;
+            spi_sclk             <= 1'b0;
+            spi_cs_n             <= 1'b1;
+            spi_mosi             <= 1'b0;
             sdram_init_countdown <= SDRAM_HOST_INIT_CYCLES;
         end else begin
-            blink_counter  <= blink_counter + 25'd1;
-            prev_panel_clk <= check_panel_clk;
-            prev_panel_lat <= check_panel_lat;
+            blink_counter <= blink_counter + 25'd1;
 
-            if (fail_latched)          led_status <= ~blink_counter[24];
-            else if (state != ST_IDLE) led_status <= ~blink_counter[21];
-            else if (bist_done)        led_status <= 1'b0;
-            else                       led_status <= 1'b1;
+            if (pattern_hold) led_status <= ~blink_counter[22];
+            else if (demo_running) led_status <= ~blink_counter[21];
+            else led_status <= 1'b1;
 
             case (state)
                 ST_IDLE: begin
                     spi_sclk     <= 1'b0;
                     spi_cs_n     <= 1'b1;
                     spi_mosi     <= 1'b0;
-                    wait_counter <= {COUNT_WIDTH{1'b0}};
                     if (sdram_init_countdown != 24'd0)
                         sdram_init_countdown <= sdram_init_countdown - 24'd1;
                     else if (start_event) begin
-                        bist_done           <= 1'b0;
-                        fail_latched        <= 1'b0;
-                        write_index         <= {COUNT_WIDTH{1'b0}};
-                        group_pixel_index   <= {COUNT_WIDTH{1'b0}};
-                        clk_pulse_count     <= {COUNT_WIDTH{1'b0}};
-                        latch_count         <= {COUNT_WIDTH{1'b0}};
-                        expected_panel_addr <= {ROW_ADDR_WIDTH{1'b0}};
-                        expected_bcm        <= {ColorDepth{1'b0}};
-                        oe_seen             <= 1'b0;
-                        state               <= ST_LOAD_WRITE;
+                        pattern_id   <= {PatSelWidth{1'b0}};
+                        hold_counter <= {COUNT_WIDTH{1'b0}};
+                        write_index  <= {COUNT_WIDTH{1'b0}};
+                        state        <= ST_LOAD_WRITE;
                     end
                 end
 
@@ -462,14 +381,8 @@ module led_panel_controller_bist_top #(
 
                 ST_COMMAND_GAP: begin
                     if (command_phase == PH_FLIP) begin
-                        wait_counter        <= {COUNT_WIDTH{1'b0}};
-                        group_pixel_index   <= {COUNT_WIDTH{1'b0}};
-                        clk_pulse_count     <= {COUNT_WIDTH{1'b0}};
-                        latch_count         <= {COUNT_WIDTH{1'b0}};
-                        expected_panel_addr <= {ROW_ADDR_WIDTH{1'b0}};
-                        expected_bcm        <= {ColorDepth{1'b0}};
-                        oe_seen             <= 1'b0;
-                        state               <= ST_WAIT_DISPLAY;
+                        hold_counter <= {COUNT_WIDTH{1'b0}};
+                        state        <= ST_PATTERN_HOLD;
                     end else if (gap_counter >= CommandSettleCycles[COUNT_WIDTH-1:0]) begin
                         gap_counter <= {COUNT_WIDTH{1'b0}};
                         if (write_index == LAST_WRITE_INDEX) begin
@@ -483,59 +396,17 @@ module led_panel_controller_bist_top #(
                     end
                 end
 
-                ST_WAIT_DISPLAY: begin
-                    if (!check_panel_oe)
-                        oe_seen <= 1'b1;
-
-                    if (panel_clk_rise) begin
-                        if (check_panel_r1 != current_expected_top_data[(ColorDepth*2) + expected_bcm])
-                            fail_latched <= 1'b1;
-                        if (check_panel_g1 != current_expected_top_data[(ColorDepth*1) + expected_bcm])
-                            fail_latched <= 1'b1;
-                        if (check_panel_b1 != current_expected_top_data[(ColorDepth*0) + expected_bcm])
-                            fail_latched <= 1'b1;
-                        if (check_panel_r2 != current_expected_bottom_data[(ColorDepth*2) + expected_bcm])
-                            fail_latched <= 1'b1;
-                        if (check_panel_g2 != current_expected_bottom_data[(ColorDepth*1) + expected_bcm])
-                            fail_latched <= 1'b1;
-                        if (check_panel_b2 != current_expected_bottom_data[(ColorDepth*0) + expected_bcm])
-                            fail_latched <= 1'b1;
-
-                        clk_pulse_count <= clk_pulse_count + {{(COUNT_WIDTH-1){1'b0}}, 1'b1};
-                        if (group_pixel_index == LAST_GROUP_PIXEL)
-                            group_pixel_index <= {COUNT_WIDTH{1'b0}};
+                ST_PATTERN_HOLD: begin
+                    if (hold_counter >= PATTERN_HOLD_CYCLES) begin
+                        hold_counter <= {COUNT_WIDTH{1'b0}};
+                        write_index  <= {COUNT_WIDTH{1'b0}};
+                        if (pattern_id == LastPatternIndex)
+                            pattern_id <= {PatSelWidth{1'b0}};
                         else
-                            group_pixel_index <= group_pixel_index + {{(COUNT_WIDTH-1){1'b0}}, 1'b1};
-                    end
-
-                    if (panel_lat_rise) begin
-                        if (check_panel_addr != expected_panel_addr)
-                            fail_latched <= 1'b1;
-
-                        latch_count       <= latch_count + {{(COUNT_WIDTH-1){1'b0}}, 1'b1};
-                        group_pixel_index <= {COUNT_WIDTH{1'b0}};
-                        if (expected_bcm == LAST_BCM_INDEX[ColorDepth-1:0]) begin
-                            expected_bcm <= {ColorDepth{1'b0}};
-                            if (expected_panel_addr == LAST_ROW_PAIR_INDEX[ROW_ADDR_WIDTH-1:0])
-                                expected_panel_addr <= {ROW_ADDR_WIDTH{1'b0}};
-                            else
-                                expected_panel_addr <= expected_panel_addr + {{(ROW_ADDR_WIDTH-1){1'b0}}, 1'b1};
-                        end else begin
-                            expected_bcm <= expected_bcm + {{(ColorDepth-1){1'b0}}, 1'b1};
-                        end
-                    end
-
-                    if (latch_count == TOTAL_GROUPS && clk_pulse_count == TOTAL_CLK_PULSES) begin
-                        if (!oe_seen || fail_latched)
-                            fail_latched <= 1'b1;
-                        bist_done <= 1'b1;
-                        state     <= ST_IDLE;
-                    end else if (wait_counter >= DISPLAY_WAIT_TIMEOUT) begin
-                        fail_latched <= 1'b1;
-                        bist_done    <= 1'b1;
-                        state        <= ST_IDLE;
+                            pattern_id <= pattern_id + {{(PatSelWidth-1){1'b0}}, 1'b1};
+                        state <= ST_LOAD_WRITE;
                     end else begin
-                        wait_counter <= wait_counter + {{(COUNT_WIDTH-1){1'b0}}, 1'b1};
+                        hold_counter <= hold_counter + {{(COUNT_WIDTH-1){1'b0}}, 1'b1};
                     end
                 end
 

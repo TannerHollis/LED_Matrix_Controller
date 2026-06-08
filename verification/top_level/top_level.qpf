@@ -1,0 +1,13 @@
+# -------------------------------------------------------------------------- #
+#
+# Quartus Prime project: production top_level (led_panel_controller)
+#
+# -------------------------------------------------------------------------- #
+
+QUARTUS_VERSION = "24.1"
+DATE = "$(date)"
+
+# Revisions
+
+PROJECT_REVISION = "top_level"
+PROJECT_REVISION_ARCHIVE = ""

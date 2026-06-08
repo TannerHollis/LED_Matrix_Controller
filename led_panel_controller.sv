@@ -149,51 +149,47 @@ module led_panel_controller #(
       (SdramBusCyclesPerRowPairBl1 * 100) / CyclesBudgetPerRowPair;
   localparam int unsigned TargetVsCeilingPct        =
       (RefreshRateHz * 100) / MaxAchievableRateHz;
-  localparam int unsigned LinePeriodUs              =
-      1000000 / (RefreshRateHz * PanelHeight);
+  localparam int unsigned SdramCyclesPerFrame       =
+      SdramBusCyclesPerRowPair * RowPairCount;
+  localparam int unsigned SdramFrameUtilPct         =
+      ((SdramCyclesPerFrame * 100) + (DesiredCyclesPerFrame / 2)) /
+      DesiredCyclesPerFrame;
+  localparam int unsigned TotalBudgetUsedPct        =
+      Hub75UtilPct + SdramFrameUtilPct;
+  localparam int unsigned FrameHeadroomPct          =
+      (TotalBudgetUsedPct >= 100) ? 0 : (100 - TotalBudgetUsedPct);
 
   initial begin
     if (ReadBurstLen != 1 && ReadBurstLen != 2 && ReadBurstLen != 4 && ReadBurstLen != 8)
       $display("ERROR: led_panel_controller ReadBurstLen=%0d; legal values are 1, 2, 4, 8",
                ReadBurstLen);
     if (SdramTailReadsPerLine != 0)
-      $display("INFO: budget tail_reads_per_line=%0d (width not multiple of burst_len=%0d)",
-               SdramTailReadsPerLine, ReadBurstLen);
+      $display("ERROR: width=%0d not multiple of burst_len=%0d (tail_reads=%0d)",
+               TotalWidth, ReadBurstLen, SdramTailReadsPerLine);
 
-    $display("INFO: config width=%0d height=%0d panel_rows=%0d panels_per_row=%0d depth=%0d clk_hz=%0d",
-             TotalWidth, TotalHeight, NumPanelRows, NumPanelsPerRow, ColorDepth, SysClkHz);
-    $display("INFO: target_hz=%0d frame_cycles=%0d us_per_scan_line=%0d",
-             RefreshRateHz, DesiredCyclesPerFrame, LinePeriodUs);
-    $display("INFO: limit HUB75 used_cycles=%0d budget_cycles=%0d util_pct=%0d max_hz=%0d",
-             MinDisplayCyclesPerFrame, DesiredCyclesPerFrame, Hub75UtilPct, MaxDisplayRateHz);
-    $display("INFO: budget sdram burst_len=%0d bursts_per_line=%0d cyc_per_burst=%0d cyc_per_single=%0d",
-             ReadBurstLen, SdramFullBurstsPerLine,
-             SdramHostCyclesPerBurst, SdramHostCyclesPerSingle);
-    $display("INFO: limit SDRAM_line BL%0d used_cycles=%0d budget_cycles=%0d util_pct=%0d max_hz=%0d",
-             ReadBurstLen, SdramBusCyclesPerLine, CyclesBudgetPerScanLine,
-             SdramLineUtilPct, MaxSdramLineRateHz);
-    $display("INFO: limit SDRAM_line BL1 baseline used_cycles=%0d util_pct=%0d max_hz=%0d",
-             SdramBusCyclesPerLineBl1, SdramLineUtilPctBl1, MaxSdramLineRateHzBl1);
-    $display("INFO: limit SDRAM_row_pair BL%0d used_cycles=%0d budget_cycles=%0d util_pct=%0d max_hz=%0d",
-             ReadBurstLen, SdramBusCyclesPerRowPair, CyclesBudgetPerRowPair,
-             SdramRowPairUtilPct, MaxSdramRowPairRateHz);
-    $display("INFO: budget sdram_cycles_saved_per_row_pair=%0d per_frame=%0d vs_single_beat",
-             SdramCyclesSavedPerRowPair, SdramCyclesSavedPerFrame);
-    $display("INFO: ceiling_hz=%0d target_pct_of_ceiling=%0d",
-             MaxAchievableRateHz, TargetVsCeilingPct);
+    $display("INFO: led_panel_controller %0dx%0d rows=%0d depth=%0d @ %0d Hz (%0d cyc/frame, clk %0d MHz)",
+             TotalWidth, TotalHeight, NumPanelRows, ColorDepth,
+             RefreshRateHz, DesiredCyclesPerFrame, SysClkHz / 1_000_000);
+    $display("INFO: frame budget: HUB75 %0d pct + SDRAM %0d pct = %0d pct used, %0d pct headroom (max %0d Hz)",
+             Hub75UtilPct, SdramFrameUtilPct, TotalBudgetUsedPct,
+             FrameHeadroomPct, MaxAchievableRateHz);
 
     if (RefreshRateHz <= MaxAchievableRateHz)
-      $display("INFO: verdict OK target_hz=%0d ceiling_hz=%0d", RefreshRateHz, MaxAchievableRateHz);
+      $display("INFO: refresh OK: target %0d Hz is %0d pct of %0d Hz ceiling",
+               RefreshRateHz, TargetVsCeilingPct, MaxAchievableRateHz);
     else
-      $display("INFO: verdict FAIL target_hz=%0d ceiling_hz=%0d", RefreshRateHz, MaxAchievableRateHz);
+      $display("ERROR: refresh FAIL: target %0d Hz exceeds %0d Hz ceiling",
+               RefreshRateHz, MaxAchievableRateHz);
 
     if (RefreshRateHz > MaxDisplayRateHz)
-      $display("ERROR: HUB75 over limit util_pct=%0d max_hz=%0d", Hub75UtilPct, MaxDisplayRateHz);
+      $display("ERROR: HUB75 over budget (%0d pct of frame, max %0d Hz)",
+               Hub75UtilPct, MaxDisplayRateHz);
     if (SdramBusCyclesPerLine > CyclesBudgetPerScanLine)
-      $display("ERROR: SDRAM_line over limit util_pct=%0d max_hz=%0d",
+      $display("ERROR: SDRAM scan-line over budget (%0d pct of line slot, max %0d Hz)",
                SdramLineUtilPct, MaxSdramLineRateHz);
     if (SdramBusCyclesPerRowPair > CyclesBudgetPerRowPair)
-      $display("ERROR: SDRAM_row_pair over limit util_pct=%0d", SdramRowPairUtilPct);
+      $display("ERROR: SDRAM row-pair over budget (%0d pct of row-pair slot)",
+               SdramRowPairUtilPct);
   end
 
   logic [CmdWidth-1:0] spi_data_out;
@@ -232,10 +228,11 @@ module led_panel_controller #(
   logic [DataWidth-1:0] arbiter_mem_read_data;
   logic arbiter_mem_read_data_valid;
 
-  localparam logic [BrightnessWidth-1:0] DriverBrightness = {BrightnessWidth{1'b1}};
+  localparam logic [BrightnessWidth-1:0] DriverBrightness = {1'b0, {(BrightnessWidth-2){1'b0}}, 1'b1}; // quarter brightness
 
   logic frame_ready;
   logic panels_enabled_q;
+  logic panel_flip_reset_q;
   logic panel_reset_n;
 
   logic [31:0] eth_config_ip_addr;
@@ -314,13 +311,18 @@ module led_panel_controller #(
   assign panel_mem_write_data   = {(DataWidth*NumPanelRows){1'b0}};
   assign panel_mem_write_length = {(4*NumPanelRows){4'b0001}};
 
-  assign panel_reset_n = rst_ni && panels_enabled_q;
+  assign panel_reset_n = rst_ni && panels_enabled_q && !panel_flip_reset_q;
 
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
-      panels_enabled_q <= 1'b0;
-    end else if (frame_ready) begin
-      panels_enabled_q <= 1'b1;
+      panels_enabled_q   <= 1'b0;
+      panel_flip_reset_q <= 1'b0;
+    end else begin
+      panel_flip_reset_q <= 1'b0;
+      if (frame_ready) begin
+        panels_enabled_q   <= 1'b1;
+        panel_flip_reset_q <= 1'b1;
+      end
     end
   end
 
