@@ -9,6 +9,9 @@
 // Dependencies:
 //   - led_panel_driver.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module led_panel_driver_tb;
@@ -88,6 +91,7 @@ module led_panel_driver_tb;
   logic [3:0] beats_left_q;
   logic [MemAddrWidth-1:0] grant_base_addr_q;
 
+  // Mock memory arbiter: fixed arbitration delay, then burst read beats from sim_memory.
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       arbiter_state_q <= StIdle;
@@ -99,7 +103,7 @@ module led_panel_driver_tb;
       mem_grant_i <= 1'b0;
       mem_read_data_valid_i <= 1'b0;
 
-      case (arbiter_state_q)
+      unique case (arbiter_state_q)
         StIdle: begin
           if (mem_req_o) begin
             arbiter_state_q <= StArbitration;
@@ -108,7 +112,7 @@ module led_panel_driver_tb;
         end
 
         StArbitration: begin
-          if (delay_counter_q == 4) begin
+          if (delay_counter_q == 3'd4) begin
             arbiter_state_q <= StGrant;
             mem_grant_i <= 1'b1;
             grant_base_addr_q <= mem_addr_o;
@@ -124,7 +128,7 @@ module led_panel_driver_tb;
         end
 
         StDataDelay: begin
-          if (delay_counter_q == 1) begin
+          if (delay_counter_q == 3'd1) begin
             arbiter_state_q <= StDataValid;
             mem_read_data_i <= sim_memory[grant_base_addr_q + (mem_read_length_o - beats_left_q)];
             mem_read_data_valid_i <= 1'b1;

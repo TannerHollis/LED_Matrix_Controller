@@ -1,9 +1,11 @@
-# Shared board pin and device assignments (DE2-115 / EP4CGX150)
-# Sourced by each verification project .qsf
+# DE2-115 pins + device for led_panel_controller_bist_top
+# Sourced by led_panel_controller_bist_top.qsf
+#
+# Do not source ../board_assignments.qsf here — it adds verification/bist_timing.sdc
+# (50 MHz). This project uses led_panel_controller_bist_timing.sdc (100 MHz host).
 
 set_global_assignment -name NUM_PARALLEL_PROCESSORS 4
-
-set_global_assignment -name SDC_FILE ../bist_sdram_timing.sdc
+set_global_assignment -name SDC_FILE led_panel_controller_bist_timing.sdc
 
 set_global_assignment -name FAMILY "Cyclone IV GX"
 set_global_assignment -name DEVICE EP4CGX150DF27I7

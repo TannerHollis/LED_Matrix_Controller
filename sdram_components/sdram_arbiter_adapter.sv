@@ -19,7 +19,7 @@
 //   - sdram_controller.sv (FIFO host interface)
 //
 // Revision History:
-//   Current - Burst-8 SDRAM reads, single-beat writes (lowRISC port naming).
+//   Current - Pipelined sequential addr compare (StAddrChk); burst-8 reads, single-beat writes.
 // ============================================================================
 
 module sdram_arbiter_adapter #(
@@ -63,6 +63,7 @@ module sdram_arbiter_adapter #(
 
   typedef enum logic [4:0] {
     StIdle,
+    StAddrChk,
     StWrSync,
     StWrAckWait,
     StRdSync,
@@ -90,6 +91,11 @@ module sdram_arbiter_adapter #(
   logic [1:0]               read_settle_count_q;
   logic [3:0]               beats_remaining_q;
 
+  logic [AddrWidth-1:0]     pending_addr_q;
+  logic [DataWidth-1:0]     pending_write_data_q;
+  logic                     pending_write_q;
+  logic [3:0]               pending_read_len_q;
+
   logic _unused_wr_len;
   logic needs_write_turnaround;
 
@@ -105,8 +111,8 @@ module sdram_arbiter_adapter #(
   assign _unused_wr_len = |arbiter_mem_write_length_i;
   assign needs_write_turnaround = writes_pending_q || (sdram_write_used_i[8:0] != 9'd0);
 
-  assign sdram_write_data_o = {{(16 - DataWidth){1'b0}}, arbiter_mem_write_data_i};
-  assign sdram_write_addr_o = {{(SdramAddrWidth - AddrWidth){1'b0}}, arbiter_mem_addr_i};
+  assign sdram_write_data_o = {{(16 - DataWidth){1'b0}}, pending_write_data_q};
+  assign sdram_write_addr_o = {{(SdramAddrWidth - AddrWidth){1'b0}}, pending_addr_q};
   assign sdram_read_addr_o  = {{(SdramAddrWidth - AddrWidth){1'b0}}, read_burst_addr_q};
   assign arbiter_mem_read_data_o = sdram_read_data_i[DataWidth-1:0];
 
@@ -142,6 +148,10 @@ module sdram_arbiter_adapter #(
       wr_drain_counter_q            <= 12'd0;
       wr_ack_counter_q              <= 8'd0;
       beats_remaining_q             <= 4'd0;
+      pending_addr_q                <= '0;
+      pending_write_data_q          <= '0;
+      pending_write_q               <= 1'b0;
+      pending_read_len_q            <= 4'd0;
     end else begin
       arbiter_mem_ready_o           <= 1'b0;
       arbiter_mem_read_data_valid_o <= 1'b0;
@@ -156,40 +166,50 @@ module sdram_arbiter_adapter #(
           sdram_read_length_o  <= ReadDisabled;
 
           if (arbiter_mem_req_i) begin
-            if (arbiter_mem_write_i) begin
-              sdram_read_length_o <= ReadDisabled;
-              rd_tracking_valid_q <= 1'b0;
+            pending_addr_q       <= arbiter_mem_addr_i;
+            pending_write_q      <= arbiter_mem_write_i;
+            pending_write_data_q <= arbiter_mem_write_data_i;
+            pending_read_len_q   <= arbiter_mem_read_length_i;
+            state_q              <= StAddrChk;
+          end
+        end
 
-              if (wr_tracking_valid_q && (arbiter_mem_addr_i == expected_wr_addr_q)) begin
-                if (!sdram_write_full_i) begin
-                  sdram_write_length_o  <= 9'd1;
-                  sdram_write_request_o <= 1'b1;
-                  arbiter_mem_ready_o   <= 1'b1;
-                  expected_wr_addr_q    <= arbiter_mem_addr_i + {{(AddrWidth-1){1'b0}}, 1'b1};
-                  writes_pending_q      <= 1'b1;
-                  wr_ack_counter_q      <= 8'd0;
-                  state_q               <= StWrAckWait;
-                end
-              end else begin
-                wr_drain_counter_q <= 12'd0;
-                state_q            <= StWrSync;
+        StAddrChk: begin
+          if (!arbiter_mem_req_i) begin
+            state_q <= StIdle;
+          end else if (pending_write_q) begin
+            sdram_read_length_o <= ReadDisabled;
+            rd_tracking_valid_q <= 1'b0;
+
+            if (wr_tracking_valid_q && (pending_addr_q == expected_wr_addr_q)) begin
+              if (!sdram_write_full_i) begin
+                sdram_write_length_o  <= 9'd1;
+                sdram_write_request_o <= 1'b1;
+                arbiter_mem_ready_o   <= 1'b1;
+                expected_wr_addr_q    <= pending_addr_q + {{(AddrWidth-1){1'b0}}, 1'b1};
+                writes_pending_q      <= 1'b1;
+                wr_ack_counter_q      <= 8'd0;
+                state_q               <= StWrAckWait;
               end
             end else begin
-              sdram_write_length_o <= 9'd1;
-              wr_tracking_valid_q  <= 1'b0;
-              beats_remaining_q    <= clamp_burst_len(arbiter_mem_read_length_i);
+              wr_drain_counter_q <= 12'd0;
+              state_q            <= StWrSync;
+            end
+          end else begin
+            sdram_write_length_o <= 9'd1;
+            wr_tracking_valid_q  <= 1'b0;
+            beats_remaining_q    <= clamp_burst_len(pending_read_len_q);
 
-              if (rd_tracking_valid_q && (arbiter_mem_addr_i == expected_rd_addr_q)) begin
-                read_burst_addr_q <= arbiter_mem_addr_i;
-                state_q           <= StRdFlush;
-              end else begin
-                rd_tracking_valid_q <= 1'b0;
-                wr_drain_counter_q    <= 12'd0;
-                if (needs_write_turnaround)
-                  state_q <= StRdSync;
-                else
-                  state_q <= StRdFlush;
-              end
+            if (rd_tracking_valid_q && (pending_addr_q == expected_rd_addr_q)) begin
+              read_burst_addr_q <= pending_addr_q;
+              state_q           <= StRdFlush;
+            end else begin
+              rd_tracking_valid_q  <= 1'b0;
+              wr_drain_counter_q   <= 12'd0;
+              if (needs_write_turnaround)
+                state_q <= StRdSync;
+              else
+                state_q <= StRdFlush;
             end
           end
         end
@@ -203,7 +223,7 @@ module sdram_arbiter_adapter #(
                 sdram_write_length_o  <= 9'd1;
                 sdram_write_request_o <= 1'b1;
                 arbiter_mem_ready_o   <= 1'b1;
-                expected_wr_addr_q    <= arbiter_mem_addr_i + {{(AddrWidth-1){1'b0}}, 1'b1};
+                expected_wr_addr_q    <= pending_addr_q + {{(AddrWidth-1){1'b0}}, 1'b1};
                 wr_tracking_valid_q   <= 1'b1;
                 writes_pending_q      <= 1'b1;
                 wr_ack_counter_q      <= 8'd0;
@@ -249,8 +269,8 @@ module sdram_arbiter_adapter #(
             sdram_read_request_o <= 1'b1;
             state_q              <= StRdFlushW;
           end else begin
-            beats_remaining_q <= clamp_burst_len(arbiter_mem_read_length_i);
-            read_burst_addr_q <= arbiter_mem_addr_i;
+            beats_remaining_q <= clamp_burst_len(pending_read_len_q);
+            read_burst_addr_q <= pending_addr_q;
             state_q           <= StRdStart;
           end
         end

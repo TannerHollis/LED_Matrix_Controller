@@ -10,6 +10,9 @@
 //   - led_panel_controller.sv
 //   - sdram_components/sdram_model.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module led_panel_controller_tb;
@@ -44,19 +47,20 @@ module led_panel_controller_tb;
   logic [NumPanelRows-1:0] panel_oe_o;
   logic [NumPanelRows-1:0] panel_lat_o;
 
-  wire [12:0] sdram_addr_o;
-  wire [1:0]  sdram_ba_o;
-  wire        sdram_cas_n_o;
-  wire        sdram_cke_o;
-  wire        sdram_clk_o;
-  wire        sdram_cs_n_o;
-  wire [15:0] sdram_dq_io;
-  wire [1:0]  sdram_dqm_o;
-  wire        sdram_ras_n_o;
-  wire        sdram_we_n_o;
+  logic [12:0] sdram_addr_o;
+  logic [1:0]  sdram_ba_o;
+  logic        sdram_cas_n_o;
+  logic        sdram_cke_o;
+  logic        sdram_clk_o;
+  logic        sdram_cs_n_o;
+  wire  [15:0] sdram_dq_io;
+  logic [1:0]  sdram_dqm_o;
+  logic        sdram_ras_n_o;
+  logic        sdram_we_n_o;
 
   led_panel_controller #(
-    .SysClkHz(50_000_000),
+    .SysClkHz(100_000_000),
+    .MaxPanelClkHz(25_000_000),
     .RefreshRateHz(60),
     .NumPanelRows(NumPanelRows),
     .NumPanelsPerRow(NumPanelsPerRow),

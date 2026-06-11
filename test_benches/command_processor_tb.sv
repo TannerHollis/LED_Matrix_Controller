@@ -9,6 +9,9 @@
 // Dependencies:
 //   - command_processor.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module command_processor_tb;

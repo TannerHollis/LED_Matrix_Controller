@@ -32,6 +32,7 @@ set_global_assignment -name SYSTEMVERILOG_FILE sdram_bist_top.sv
 set_global_assignment -name VERILOG_FILE ../../sdram_components/sdram_write_fifo.v
 set_global_assignment -name VERILOG_FILE ../../sdram_components/sdram_read_fifo.v
 set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_data_path.sv
+set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_clock_gen.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_controller.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_control_interface.sv
 set_global_assignment -name SYSTEMVERILOG_FILE ../../sdram_components/sdram_command.sv

@@ -9,6 +9,9 @@
 // Dependencies:
 //   - memory_arbiter.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module memory_arbiter_tb;
@@ -73,6 +76,7 @@ module memory_arbiter_tb;
 
   always #(ClkPeriod / 2) clk_i = ~clk_i;
 
+  // Mock SDRAM slave: assert ready for burst reads and return addr-based data.
   always_ff @(posedge clk_i) begin
     master_mem_read_data_valid_i <= 1'b0;
     if (master_mem_req_o && !master_mem_write_o && master_mem_ready_i) begin
@@ -103,7 +107,7 @@ module memory_arbiter_tb;
 
   task client_request;
     input integer client_id;
-    input bit is_write;
+    input logic is_write;
     input [AddrWidth-1:0] addr;
     input [DataWidth-1:0] wdata;
     input [3:0] rd_len;

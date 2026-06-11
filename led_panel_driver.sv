@@ -24,6 +24,7 @@
 
 module led_panel_driver #(
   parameter int unsigned SysClkHz           = 100_000_000,
+  parameter int unsigned MaxPanelClkHz      = 25_000_000,
   parameter int unsigned RefreshRateHz      = 60,
   parameter int unsigned BrightnessWidth    = 8,
   parameter int unsigned TotalRowWidth      = 32,
@@ -134,6 +135,7 @@ module led_panel_driver #(
 
   display_driver #(
     .SysClkHz(SysClkHz),
+    .MaxPanelClkHz(MaxPanelClkHz),
     .RefreshRateHz(RefreshRateHz),
     .BrightnessWidth(BrightnessWidth),
     .TotalRowWidth(TotalRowWidth),

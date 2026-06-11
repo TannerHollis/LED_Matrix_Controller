@@ -9,18 +9,20 @@
 //   completed row pair and display_complete at frame wrap.
 //
 // Parameters  (UpperCamelCase per VERILOG_STYLE.md):
-//   SysClkHz, RefreshRateHz, BrightnessWidth, TotalRowWidth, PanelHeight,
-//   ColorDepth
+//   SysClkHz, MaxPanelClkHz, RefreshRateHz, BrightnessWidth, TotalRowWidth,
+//   PanelHeight, ColorDepth
 //
 // Dependencies:
 //   (none)
 // ============================================================================
 // Revision History:
-//   Current - One-cycle line-buffer read wait before CLK high (M9K latency).
+//   Current - BRAM read addr prefetched on StClkHi; pixel data latched at end of
+//             StRdWait; panel R/G/B from pixel regs on StClkHi (before CLK).
 // ============================================================================
 
 module display_driver #(
   parameter int unsigned SysClkHz       = 50_000_000,
+  parameter int unsigned MaxPanelClkHz  = 25_000_000,
   parameter int unsigned RefreshRateHz  = 60,
   parameter int unsigned BrightnessWidth = 8,
   parameter int unsigned TotalRowWidth  = 1024,
@@ -57,7 +59,16 @@ module display_driver #(
   localparam int unsigned RowPairCount   = PanelHeight / 2;
   localparam int unsigned AddrBits       = $clog2(RowPairCount);
   localparam int unsigned CyclesPerFrame = SysClkHz / RefreshRateHz;
-  localparam int unsigned CyclesPerRowScan = (TotalRowWidth * 3) + 3;
+  localparam int unsigned CyclesPerPixelShift =
+      (SysClkHz + MaxPanelClkHz - 1) / MaxPanelClkHz;
+  localparam int unsigned BaseShiftCycles = 3;
+  localparam int unsigned PanelClkPadCycles =
+      (CyclesPerPixelShift > BaseShiftCycles)
+          ? (CyclesPerPixelShift - BaseShiftCycles) : 0;
+  localparam int unsigned PadCounterWidth =
+      (PanelClkPadCycles == 0) ? 1 : $clog2(PanelClkPadCycles + 1);
+  localparam int unsigned CyclesPerRowScan =
+      (TotalRowWidth * CyclesPerPixelShift) + 3;
   localparam int unsigned TotalOverheadCycles =
       CyclesPerRowScan * RowPairCount * ColorDepth;
   localparam int unsigned TotalBcmWeight = (1 << ColorDepth) - 1;
@@ -100,10 +111,14 @@ module display_driver #(
   logic [ShiftAddrWidth-1:0] shift_counter_q;
   logic [OeTimerWidth-1:0] oe_timer_q;
   logic [BrightnessWidth-1:0] pwm_counter_q;
+  logic [PadCounterWidth-1:0] panel_pad_counter_q;
+  logic [PixelDataWidth-1:0] pixel_top_q;
+  logic [PixelDataWidth-1:0] pixel_bot_q;
 
   initial begin
-    $display("INFO: display_driver config: width=%0d height=%0d color_depth=%0d refresh=%0d Hz max_refresh=%0d Hz",
-             TotalRowWidth, PanelHeight, ColorDepth, RefreshRateHz, MaxRefreshRateHz);
+    $display("INFO: display_driver config: width=%0d height=%0d color_depth=%0d refresh=%0d Hz max_panel_clk=%0d Hz shift_cycles=%0d max_refresh=%0d Hz",
+             TotalRowWidth, PanelHeight, ColorDepth, RefreshRateHz, MaxPanelClkHz,
+             CyclesPerPixelShift, MaxRefreshRateHz);
     if (RefreshRateHz > MaxRefreshRateHz) begin
       $display("ERROR: display_driver RefreshRateHz=%0d exceeds max_refresh=%0d for width=%0d height=%0d color_depth=%0d",
                RefreshRateHz, MaxRefreshRateHz, TotalRowWidth, PanelHeight, ColorDepth);
@@ -131,7 +146,12 @@ module display_driver #(
       unique case (display_state_q)
         StShift: display_state_d = StRdWait;
 
-        StRdWait: display_state_d = StClkHi;
+        StRdWait: begin
+          if (panel_pad_counter_q != {PadCounterWidth{1'b0}})
+            display_state_d = StRdWait;
+          else
+            display_state_d = StClkHi;
+        end
 
         StClkHi: begin
           if (shift_counter_q == {ShiftAddrWidth{1'b0}}) begin
@@ -165,6 +185,8 @@ module display_driver #(
   always_ff @(posedge clk_i or negedge rst_ni) begin
     if (!rst_ni) begin
       display_state_q    <= StIdle;
+      pixel_top_q        <= '0;
+      pixel_bot_q        <= '0;
       panel_r1_o         <= 1'b0;
       panel_g1_o         <= 1'b0;
       panel_b1_o         <= 1'b0;
@@ -177,9 +199,10 @@ module display_driver #(
       panel_oe_o         <= 1'b1;
       bcm_counter_q      <= '0;
       row_pair_counter_q <= '0;
-      shift_counter_q    <= '0;
-      oe_timer_q         <= '0;
-      buffer_rd_addr_o   <= '0;
+      shift_counter_q      <= '0;
+      oe_timer_q           <= '0;
+      panel_pad_counter_q  <= '0;
+      buffer_rd_addr_o     <= '0;
       display_complete_o <= 1'b0;
       row_pair_done_o    <= 1'b0;
       busy_o             <= 1'b0;
@@ -190,6 +213,7 @@ module display_driver #(
 
       if (start_display_i && display_state_q == StIdle) begin
         shift_counter_q    <= LastShiftAddr;
+        buffer_rd_addr_o   <= LastShiftAddr;
         bcm_counter_q      <= '0;
         row_pair_counter_q <= '0;
         busy_o             <= 1'b1;
@@ -204,25 +228,33 @@ module display_driver #(
           end
 
           StShift: begin
-            panel_clk_o      <= 1'b0;
-            buffer_rd_addr_o <= shift_counter_q;
+            panel_clk_o <= 1'b0;
+            if (display_state_d == StRdWait)
+              panel_pad_counter_q <= PanelClkPadCycles[PadCounterWidth-1:0];
           end
 
           StRdWait: begin
             panel_clk_o <= 1'b0;
+            if (panel_pad_counter_q != {PadCounterWidth{1'b0}}) begin
+              panel_pad_counter_q <= panel_pad_counter_q - {{(PadCounterWidth-1){1'b0}}, 1'b1};
+            end else begin
+              pixel_top_q <= buffer_rd_data_top_i;
+              pixel_bot_q <= buffer_rd_data_bottom_i;
+            end
           end
 
           StClkHi: begin
             panel_clk_o <= 1'b1;
-            panel_r1_o  <= buffer_rd_data_top_i[(ColorDepth*2) + bcm_counter_q];
-            panel_g1_o  <= buffer_rd_data_top_i[(ColorDepth*1) + bcm_counter_q];
-            panel_b1_o  <= buffer_rd_data_top_i[(ColorDepth*0) + bcm_counter_q];
-            panel_r2_o  <= buffer_rd_data_bottom_i[(ColorDepth*2) + bcm_counter_q];
-            panel_g2_o  <= buffer_rd_data_bottom_i[(ColorDepth*1) + bcm_counter_q];
-            panel_b2_o  <= buffer_rd_data_bottom_i[(ColorDepth*0) + bcm_counter_q];
+            panel_r1_o  <= pixel_top_q[(ColorDepth*2) + bcm_counter_q];
+            panel_g1_o  <= pixel_top_q[(ColorDepth*1) + bcm_counter_q];
+            panel_b1_o  <= pixel_top_q[(ColorDepth*0) + bcm_counter_q];
+            panel_r2_o  <= pixel_bot_q[(ColorDepth*2) + bcm_counter_q];
+            panel_g2_o  <= pixel_bot_q[(ColorDepth*1) + bcm_counter_q];
+            panel_b2_o  <= pixel_bot_q[(ColorDepth*0) + bcm_counter_q];
 
             if (shift_counter_q != {ShiftAddrWidth{1'b0}}) begin
-              shift_counter_q <= shift_counter_q - ShiftOne;
+              shift_counter_q    <= shift_counter_q - ShiftOne;
+              buffer_rd_addr_o   <= shift_counter_q - ShiftOne;
             end
           end
 
@@ -254,10 +286,12 @@ module display_driver #(
                 end else begin
                   row_pair_counter_q <= row_pair_counter_q + RowPairOne;
                   shift_counter_q    <= LastShiftAddr;
+                  buffer_rd_addr_o   <= LastShiftAddr;
                 end
               end else begin
-                bcm_counter_q   <= bcm_counter_q + BcmOne;
-                shift_counter_q <= LastShiftAddr;
+                bcm_counter_q    <= bcm_counter_q + BcmOne;
+                shift_counter_q    <= LastShiftAddr;
+                buffer_rd_addr_o   <= LastShiftAddr;
               end
             end
           end

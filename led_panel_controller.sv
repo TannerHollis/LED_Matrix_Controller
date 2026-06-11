@@ -8,7 +8,7 @@
 //   SDRAM stack, and one led_panel_driver per parallel panel row.
 //
 // Parameters  (UpperCamelCase per VERILOG_STYLE.md):
-//   SysClkHz, RefreshRateHz, BrightnessWidth, NumPanelRows, NumPanelsPerRow,
+//   SysClkHz, MaxPanelClkHz, RefreshRateHz, BrightnessWidth, NumPanelRows,
 //   PanelWidth, PanelHeight, ColorDepth, CmdWidth, EnableEthernet,
 //   SdramRowWidth, SdramColWidth, SdramBankWidth, ReadBurstLen,
 //   SdramHostCyclesPerBurst, SdramHostCyclesPerSingle
@@ -19,6 +19,7 @@
 //   - led_panel_driver.sv
 //   - memory_arbiter.sv
 //   - sdram_arbiter_adapter.sv
+//   - sdram_clock_gen.sv
 //   - sdram_controller.sv
 //   - ethernet_interface.v (when EnableEthernet = 1)
 // ============================================================================
@@ -27,7 +28,8 @@
 // ============================================================================
 
 module led_panel_controller #(
-  parameter int unsigned SysClkHz                   = 50_000_000,
+  parameter int unsigned SysClkHz                   = 100_000_000,
+  parameter int unsigned MaxPanelClkHz              = 25_000_000,
   parameter int unsigned RefreshRateHz              = 60,
   parameter int unsigned BrightnessWidth            = 8,
   parameter int unsigned NumPanelRows               = 12,
@@ -95,7 +97,10 @@ module led_panel_controller #(
       (PanelHeight / 2 <= 1) ? 1 : $clog2(PanelHeight / 2);
 
   localparam int unsigned RowPairCount              = PanelHeight / 2;
-  localparam int unsigned CyclesPerRowScan          = (TotalWidth * 2) + 3;
+  localparam int unsigned CyclesPerPixelShift       =
+      (SysClkHz + MaxPanelClkHz - 1) / MaxPanelClkHz;
+  localparam int unsigned CyclesPerRowScan          =
+      (TotalWidth * CyclesPerPixelShift) + 3;
   localparam int unsigned TotalOverheadCycles       =
       CyclesPerRowScan * RowPairCount * ColorDepth;
   localparam int unsigned TotalBcmWeight            = (1 << ColorDepth) - 1;
@@ -245,12 +250,23 @@ module led_panel_controller #(
 
   logic [RowAddrWidth*NumPanelRows-1:0] panel_addr_internal;
 
+  logic clk_host;
+  logic clk_sdram;
+
+  sdram_clock_gen sdram_clock_gen_inst (
+    .clk_board_i(clk_i),
+    .rst_ni(rst_ni),
+    .clk_host_o(clk_host),
+    .clk_sdram_o(clk_sdram),
+    .pll_locked_o()
+  );
+
   assign spi_miso_o = 1'b0;
 
   spi_slave #(
     .Width(CmdWidth)
   ) spi_slave_inst (
-    .clk_i(clk_i),
+    .clk_i(clk_host),
     .rst_ni(rst_ni),
     .spi_sclk_i(spi_sclk_i),
     .spi_cs_ni(spi_cs_ni),
@@ -267,7 +283,7 @@ module led_panel_controller #(
         .MacAddr(48'h00_11_22_33_44_55),
         .IpAddr(32'hC0_A8_01_64)
       ) eth_interface_inst (
-        .clk_i(clk_i),
+        .clk_i(clk_host),
         .rst_ni(rst_ni),
         .eth_rx_data_i(eth_rx_data_i),
         .eth_rx_dv_i(eth_rx_dv_i),
@@ -313,7 +329,7 @@ module led_panel_controller #(
 
   assign panel_reset_n = rst_ni && panels_enabled_q && !panel_flip_reset_q;
 
-  always_ff @(posedge clk_i or negedge rst_ni) begin
+  always_ff @(posedge clk_host or negedge rst_ni) begin
     if (!rst_ni) begin
       panels_enabled_q   <= 1'b0;
       panel_flip_reset_q <= 1'b0;
@@ -332,7 +348,7 @@ module led_panel_controller #(
     .ColorDepth(ColorDepth),
     .CmdWidth(CmdWidth)
   ) cmd_proc_inst (
-    .clk_i(clk_i),
+    .clk_i(clk_host),
     .rst_ni(rst_ni),
     .spi_data_in_i(cmd_data_in),
     .spi_data_valid_i(cmd_data_valid_final),
@@ -356,7 +372,7 @@ module led_panel_controller #(
     .AddrWidth(FbAddrWidth),
     .DataWidth(DataWidth)
   ) mem_arbiter_inst (
-    .clk_i(clk_i),
+    .clk_i(clk_host),
     .rst_ni(rst_ni),
     .client_mem_req_i({panel_mem_req, cmd_mem_req}),
     .client_mem_write_i({panel_mem_write, cmd_mem_write}),
@@ -386,6 +402,7 @@ module led_panel_controller #(
 
       led_panel_driver #(
         .SysClkHz(SysClkHz),
+        .MaxPanelClkHz(MaxPanelClkHz),
         .RefreshRateHz(RefreshRateHz),
         .BrightnessWidth(BrightnessWidth),
         .TotalRowWidth(TotalWidth),
@@ -395,7 +412,7 @@ module led_panel_controller #(
         .TotalDisplayHeight(TotalHeight),
         .ReadBurstLen(ReadBurstLen)
       ) led_driver_inst (
-        .clk_i(clk_i),
+        .clk_i(clk_host),
         .rst_ni(panel_reset_n),
         .brightness_i(DriverBrightness),
         .mem_req_o(panel_mem_req[i]),
@@ -447,7 +464,8 @@ module led_panel_controller #(
     .ScBl(8),
     .ScSingleWrite(1)
   ) sdram_ctrl_inst (
-    .clk_50mhz_i(clk_i),
+    .clk_host_i(clk_host),
+    .clk_sdram_i(clk_sdram),
     .rst_ni(rst_ni),
     .write_data_i(sdram_write_data),
     .write_request_i(sdram_write_request),
@@ -482,7 +500,7 @@ module led_panel_controller #(
     .MaxBurstLen(8),
     .ScBl(8)
   ) sdram_adapter_inst (
-    .clk_i(clk_i),
+    .clk_i(clk_host),
     .rst_ni(rst_ni),
     .arbiter_mem_req_i(arbiter_mem_req),
     .arbiter_mem_write_i(arbiter_mem_write),

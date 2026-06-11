@@ -4,7 +4,7 @@ Synthesizable board tops for SDRAM and memory-arbiter bring-up on the DE2-115. E
 
 Simulation testbenches live in `[test_benches/](../test_benches/README.md)`.
 
-Shared pin, device, and timing constraints live in `board_assignments.qsf`, `board_no_sdram_assignments.qsf`, and `bist_timing.sdc`. SDRAM projects source `board_assignments.qsf`; non-SDRAM projects can source `board_no_sdram_assignments.qsf`; `bist_sdram_io.sdc` is optional SDRAM-only pad timing.
+Shared pin, device, and timing constraints live in `board_assignments.qsf`, `board_no_sdram_assignments.qsf`, `bist_timing.sdc`, and `bist_sdram_timing.sdc`. SDRAM projects source `board_assignments.qsf` (loads `bist_sdram_timing.sdc`); non-SDRAM projects source `board_no_sdram_assignments.qsf` or per-project `board_pins.qsf` (`bist_timing.sdc`); `led_panel_controller/` uses `led_panel_controller_bist_timing.sdc`; `bist_sdram_io.sdc` is optional SDRAM pad I/O delay.
 
 ## Coding style
 
@@ -91,13 +91,21 @@ The production stack uses **8-beat SDRAM burst reads** through `memory_arbiter` 
 
 ## Timing constraints
 
-`bist_timing.sdc` defines:
+| SDC file | Used by |
+| -------- | ------- |
+| `bist_timing.sdc` | Single-clock BIST tops (50 MHz only): `memory_arbiter`, `line_buffer_ram`, `display_driver`, `spi_slave`, … |
+| `bist_sdram_timing.sdc` | SDRAM BIST tops via `board_assignments.qsf`: `sdram_controller`, `memory_fetcher`, `led_panel_driver`, … |
+| `led_panel_controller_bist_timing.sdc` | `led_panel_controller_bist_top` only (100 MHz host + BIST SPI false paths) |
+| `buffer_controller_bist_timing.sdc` | `buffer_controller_bist_top` only |
 
-- **50 MHz** board clock on `clk_50mhz`
-- **100 MHz** SDRAM domain via `derive_pll_clocks` (`pll_100mhz` in `sdram_controller`)
-- Async clock groups between host and SDRAM domains (FIFO CDC)
-- False paths on `btn_start` / `btn_reset` (synchronized in RTL) and `led_status`
-- Optional SDRAM pad I/O delays in `bist_sdram_io.sdc` (enable after first compile; see file header)
+Common rules:
+
+- **50 MHz** board clock `clk_board_50mhz` on `clk_50mhz`
+- **100 MHz** host / SDRAM via explicit `create_generated_clock` on `sdram_clock_gen` PLL output (not `derive_pll_clocks` inside `sdram_controller`)
+- Host and SDRAM chip clock pin share the same PLL; FIFO CDC is same-clock in the current design
+- False paths on `btn_start` / `btn_reset` and `led_status`
+- BIST harness @ 50 MHz → DUT (`command_processor`, `spi_slave`) false-pathed where scripted
+- Optional SDRAM pad I/O delays in `bist_sdram_io.sdc` (clock `clk_sdram_100mhz` on `sdram_clk`)
 
 After compile, check **Timing Analyzer** or `*.sta.rpt` for setup/hold slack.
 

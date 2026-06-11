@@ -14,6 +14,9 @@
 // Dependencies:
 //   - verification/buffer_controller/buffer_controller_bist_top.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 
 `timescale 1ns / 1ps
 

@@ -4,7 +4,9 @@
 // Author      : Tanner J. Hollis
 // Description :
 //   FIFO-hosted SDRAM controller for the DE2-115 W9825G6KH-6 device. Dual-clock
-//   FIFOs bridge the 50 MHz host port to a 100 MHz SDRAM command domain.
+//   FIFOs bridge the host port to the SDRAM command domain. clk_host_i and
+//   clk_sdram_i are provided by the parent (see sdram_clock_gen.sv); they may be
+//   tied to the same net when both domains run at the same frequency.
 //
 // Parameters  :
 //   RowStart, RowSize, ColStart, ColSize, BankStart, BankSize - Address decode
@@ -24,10 +26,9 @@
 //   - sdram_data_path.sv
 //   - sdram_write_fifo.v
 //   - sdram_read_fifo.v
-//   - pll_100mhz.v
 // ============================================================================
 // Revision History:
-//   Current - Parametric BL=8 reads, optional single-beat writes (lowRISC naming).
+//   Current - External clk_host_i / clk_sdram_i; PLL moved to sdram_clock_gen.sv.
 // ============================================================================
 
 module sdram_controller #(
@@ -50,7 +51,8 @@ module sdram_controller #(
   parameter int unsigned ScSingleWrite = 1,
   parameter int unsigned MaxBurstLen   = 8
 ) (
-  input  logic                         clk_50mhz_i,
+  input  logic                         clk_host_i,
+  input  logic                         clk_sdram_i,
   input  logic                         rst_ni,
   input  logic [DataWidth-1:0]         write_data_i,
   input  logic                         write_request_i,
@@ -82,9 +84,6 @@ module sdram_controller #(
   localparam logic [SaSize-1:0]    PmPrechargeSa  = 13'h200;
   localparam int unsigned          FifoUsedWidth  = $clog2(MaxBurstLen + 1);
   localparam int unsigned          HostUsedPad   = 16 - FifoUsedWidth;
-
-  logic clk;
-  logic sdram_clk_int;
 
   logic [AddrSize-1:0] maddr_q;
   logic [8:0]          mlength_q;
@@ -151,16 +150,7 @@ module sdram_controller #(
 
   logic flag_q;
 
-  // Wizard IP: port names unchanged
-  pll_100mhz pll_inst (
-    .areset(1'b0),
-    .inclk0(clk_50mhz_i),
-    .c0(clk),
-    .locked()
-  );
-
-  assign sdram_clk_int = clk;
-  assign sdram_clk_o   = sdram_clk_int;
+  assign sdram_clk_o   = clk_sdram_i;
 
   assign sdram_addr_o  = sa_q;
   assign sdram_ba_o    = ba_q;
@@ -176,7 +166,7 @@ module sdram_controller #(
     .InitPer(InitPer),
     .RefPer(RefPer)
   ) control1 (
-    .clk_i(clk),
+    .clk_i(clk_sdram_i),
     .rst_ni(rst_ni),
     .cmd_i(cmd_q),
     .addr_i(maddr_q),
@@ -211,7 +201,7 @@ module sdram_controller #(
     .ScBl(ScBl),
     .ScSingleWrite(ScSingleWrite)
   ) command1 (
-    .clk_i(clk),
+    .clk_i(clk_sdram_i),
     .rst_ni(rst_ni),
     .saddr_i(saddr),
     .nop_i(nop),
@@ -239,7 +229,7 @@ module sdram_controller #(
   sdr_data_path #(
     .DataWidth(DataWidth)
   ) data_path1 (
-    .clk_i(clk),
+    .clk_i(clk_sdram_i),
     .rst_ni(rst_ni),
     .data_in_i(mdatin),
     .dm_i({(DataWidth/8){1'b0}}),
@@ -251,10 +241,10 @@ module sdram_controller #(
   sdram_write_fifo write_fifo1 (
     .data(write_data_i),
     .wrreq(write_request_i),
-    .wrclk(clk_50mhz_i),
+    .wrclk(clk_host_i),
     .aclr(!rst_ni),
     .rdreq(in_req_q & wr_mask_q),
-    .rdclk(clk),
+    .rdclk(clk_sdram_i),
     .q(mdatin),
     .wrfull(write_full_o),
     .wrusedw(write_fifo_wrusedw),
@@ -266,10 +256,10 @@ module sdram_controller #(
   sdram_read_fifo read_fifo1 (
     .data(mdataout_q),
     .wrreq(out_valid_q & rd_mask_q),
-    .wrclk(clk),
+    .wrclk(clk_sdram_i),
     .aclr(!rst_ni),
     .rdreq(read_request_i),
-    .rdclk(clk_50mhz_i),
+    .rdclk(clk_host_i),
     .q(read_data_o),
     .wrusedw(read_side_fifo_wusedw),
     .rdempty(read_empty_o),
@@ -278,14 +268,14 @@ module sdram_controller #(
 
   assign read_used_o = {{HostUsedPad{1'b0}}, read_fifo_rdusedw};
 
-  always_ff @(posedge clk or negedge rst_ni) begin
+  always_ff @(posedge clk_sdram_i or negedge rst_ni) begin
     if (!rst_ni)
       flag_q <= 1'b0;
     else if (write_side_fifo_rusedw == write_length_i)
       flag_q <= 1'b1;
   end
 
-  always_ff @(posedge clk) begin
+  always_ff @(posedge clk_sdram_i) begin
     sa_q    <= (st_q == ScCl + mlength_q) ? PmPrechargeSa : isa;
     ba_q    <= iba;
     cs_n_q  <= ics_n;
@@ -305,7 +295,7 @@ module sdram_controller #(
   assign sdram_dq_io = oe ? dqout : {DataWidth{1'bz}};
   assign active = read_active_q | write_active_q;
 
-  always_ff @(posedge clk or negedge rst_ni) begin
+  always_ff @(posedge clk_sdram_i or negedge rst_ni) begin
     if (!rst_ni) begin
       cmd_q           <= 2'b00;
       st_q            <= 10'd0;
@@ -374,7 +364,7 @@ module sdram_controller #(
     end
   end
 
-  always_ff @(posedge clk or negedge rst_ni) begin
+  always_ff @(posedge clk_sdram_i or negedge rst_ni) begin
     if (!rst_ni) begin
       rwr_addr_q <= write_addr_i;
       rrd_addr_q <= read_addr_i;
@@ -399,7 +389,7 @@ module sdram_controller #(
     end
   end
 
-  always_ff @(posedge clk or negedge rst_ni) begin
+  always_ff @(posedge clk_sdram_i or negedge rst_ni) begin
     if (!rst_ni) begin
       mwr_q      <= 1'b0;
       mrd_q      <= 1'b0;

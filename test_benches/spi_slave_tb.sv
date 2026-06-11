@@ -9,6 +9,9 @@
 // Dependencies:
 //   - spi_slave.sv
 // ============================================================================
+// Revision History:
+//   Current - lowRISC style migration.
+// ============================================================================
 `timescale 1ns / 1ps
 
 module spi_slave_tb;
